@@ -135,39 +135,8 @@ function createWindow() {
 
 // ── 系统托盘 ────────────────────────────────────────────
 function createTray() {
-  // 创建简易托盘图标（32x32 橙色猫脸占位图）
-  // 后续可替换为 assets/tray-icon.png
-  const size = 32;
-  const buf = Buffer.alloc(size * size * 4);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * 4;
-      const cx = size / 2, cy = size / 2;
-      const dx = x - cx, dy = y - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      // 简单猫脸：圆形头部 + 两个三角耳朵
-      const inHead = dist < 12;
-      const inEarL = (x > 3 && x < 11 && y > 1 && y < 12 && (y < 12 - (x - 3) * 1.5 || y < 5));
-      const inEarR = (x > 21 && x < 29 && y > 1 && y < 12 && (y < 12 - (29 - x) * 1.5 || y < 5));
-      const inEyeL = (x > 9 && x < 14 && y > 13 && y < 17);
-      const inEyeR = (x > 18 && x < 23 && y > 13 && y < 17);
-      const inNose = (x > 14 && x < 18 && y > 17 && y < 20);
-
-      if (inHead || inEarL || inEarR) {
-        buf[i] = 63;     // B
-        buf[i + 1] = 146; // G
-        buf[i + 2] = 232; // R (橙色)
-        buf[i + 3] = 255; // A
-      } else if (inEyeL || inEyeR) {
-        buf[i] = 24; buf[i + 1] = 28; buf[i + 2] = 44; buf[i + 3] = 255;
-      } else if (inNose) {
-        buf[i] = 186; buf[i + 1] = 179; buf[i + 2] = 255; buf[i + 3] = 255;
-      } else {
-        buf[i] = buf[i + 1] = buf[i + 2] = 0; buf[i + 3] = 0; // 透明
-      }
-    }
-  }
-  const trayIcon = nativeImage.createFromBuffer(buf, { width: size, height: size });
+  const trayIconPath = path.join(__dirname, '..', 'assets', 'tray-icon.png');
+  const trayIcon = nativeImage.createFromPath(trayIconPath);
 
   tray = new Tray(trayIcon);
   tray.setToolTip('七七桌面宠物');
@@ -301,8 +270,8 @@ function createSettingsWindow() {
   }
 
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  const winW = 340;
-  const winH = 470;
+  const winW = 360;
+  const winH = 520;
 
   settingsWindow = new BrowserWindow({
     width: winW,

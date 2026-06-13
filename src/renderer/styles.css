@@ -31,7 +31,8 @@ html, body {
 .settings-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(72, 64, 56, 0.28);
+  backdrop-filter: blur(3px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
@@ -51,10 +52,14 @@ html, body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
-  width: 320px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 340px;
+  background:
+    radial-gradient(circle at 16% 6%, rgba(216, 183, 170, 0.34), transparent 34%),
+    radial-gradient(circle at 90% 8%, rgba(157, 175, 158, 0.32), transparent 32%),
+    linear-gradient(145deg, #F2EDE6, #E7DDD2);
+  border: 1px solid rgba(227, 216, 205, 0.86);
+  border-radius: 22px;
+  box-shadow: 0 18px 48px rgba(72, 64, 56, 0.22);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease, transform 0.25s ease;
@@ -70,52 +75,97 @@ html, body {
 }
 
 .settings-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid #f0f0f0;
+  align-items: flex-start;
+  padding: 22px 22px 15px;
+  border-bottom: 1px solid rgba(227, 216, 205, 0.72);
+  background: linear-gradient(135deg, rgba(255,252,247,0.82), rgba(239,230,220,0.62));
+}
+
+.settings-header::before {
+  content: '';
+  position: absolute;
+  right: 58px;
+  top: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #9DAF9E, #D8B7AA);
+  opacity: 0.48;
 }
 
 .settings-header h2 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
+  position: relative;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #5B554D;
+  letter-spacing: 0.03em;
+}
+
+.settings-header h2::after {
+  content: '温柔陪伴你的桌面小伙伴';
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #92897E;
+  letter-spacing: 0.02em;
 }
 
 .settings-close {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: #f5f5f5;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(227, 216, 205, 0.9);
+  background: rgba(255, 252, 247, 0.8);
   border-radius: 50%;
-  font-size: 16px;
-  color: #666;
+  font-size: 17px;
+  color: #92897E;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
+  transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
-.settings-close:hover { background: #e8e8e8; }
+.settings-close:hover {
+  transform: rotate(8deg);
+  background: #FFFCF7;
+  color: #B87575;
+}
 
 .settings-body {
-  padding: 16px 20px 20px;
+  padding: 14px 16px 16px;
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f8f8f8;
+  min-height: 48px;
+  margin-bottom: 9px;
+  padding: 11px 12px;
+  border: 1px solid rgba(227, 216, 205, 0.82);
+  border-radius: 14px;
+  background: rgba(255, 252, 247, 0.88);
+  box-shadow: 0 6px 18px rgba(111, 96, 82, 0.07);
+  backdrop-filter: blur(8px);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
-.setting-item:last-child { border-bottom: none; }
+.setting-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(157, 175, 158, 0.7);
+  box-shadow: 0 9px 22px rgba(111, 96, 82, 0.1);
+}
+.setting-item:last-child { margin-bottom: 0; }
 
 .setting-item > label:first-child {
   font-size: 13px;
-  color: #555;
-  font-weight: 500;
+  color: #5F5A52;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 /* ── 滑块 ── */
@@ -127,31 +177,36 @@ html, body {
 }
 
 .setting-slider input[type="range"] {
-  width: 100px;
-  height: 4px;
+  width: 102px;
+  height: 5px;
   -webkit-appearance: none;
   appearance: none;
-  background: #e0e0e0;
-  border-radius: 2px;
+  background: linear-gradient(90deg, #9DAF9E, #DED4C9);
+  border-radius: 999px;
   outline: none;
   cursor: pointer;
 }
 .setting-slider input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
-  background: #E8923F;
+  width: 17px;
+  height: 17px;
+  background: #FFFCF7;
+  border: 3px solid #C9967A;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 3px 8px rgba(126, 103, 88, 0.22);
 }
 
 .slider-value {
+  min-width: 40px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(157, 175, 158, 0.14);
+  color: #7E957F;
   font-size: 12px;
-  color: #888;
-  min-width: 36px;
-  text-align: right;
+  font-weight: 600;
+  text-align: center;
 }
 
 /* ── 开关 ── */
@@ -159,8 +214,8 @@ html, body {
 .setting-switch {
   position: relative;
   display: inline-block;
-  width: 44px;
-  height: 24px;
+  width: 46px;
+  height: 26px;
 }
 
 .setting-switch input {
@@ -172,9 +227,9 @@ html, body {
 .switch-slider {
   position: absolute;
   inset: 0;
-  background: #d0d0d0;
-  border-radius: 12px;
-  transition: background 0.25s;
+  background: #D7CEC4;
+  border-radius: 999px;
+  transition: background 0.25s, box-shadow 0.25s;
   cursor: pointer;
 }
 .switch-slider::before {
@@ -182,34 +237,59 @@ html, body {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 18px;
-  height: 18px;
-  background: #fff;
+  width: 20px;
+  height: 20px;
+  background: #FFFCF7;
   border-radius: 50%;
   transition: transform 0.25s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  box-shadow: 0 3px 8px rgba(111, 96, 82, 0.2);
 }
 
 .setting-switch input:checked + .switch-slider {
-  background: #E8923F;
+  background: linear-gradient(135deg, #9DAF9E, #7E957F);
+  box-shadow: 0 4px 12px rgba(126, 149, 127, 0.26);
 }
 .setting-switch input:checked + .switch-slider::before {
   transform: translateX(20px);
 }
 
-/* ── 下拉选择 ── */
+/* ── 数字输入 ── */
 
-select {
-  padding: 4px 10px;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #555;
-  background: #fff;
-  cursor: pointer;
-  outline: none;
+.interval-input {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px 3px 4px;
+  border: 1px solid rgba(227, 216, 205, 0.95);
+  border-radius: 12px;
+  background: rgba(255, 252, 247, 0.9);
 }
-select:focus { border-color: #E8923F; }
+.interval-input input[type="number"] {
+  width: 58px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5F5A52;
+  background: rgba(157, 175, 158, 0.12);
+  outline: none;
+  text-align: center;
+}
+.interval-input:focus-within {
+  border-color: #9DAF9E;
+  box-shadow: 0 0 0 3px rgba(157, 175, 158, 0.14);
+}
+.interval-input input[type="number"]:disabled {
+  background: #EEE8E1;
+  color: #B5AAA0;
+  cursor: not-allowed;
+}
+.interval-input .unit {
+  font-size: 12px;
+  color: #92897E;
+  font-weight: 500;
+}
 
 /* ── 提醒气泡 ── */
 

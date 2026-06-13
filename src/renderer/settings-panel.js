@@ -61,9 +61,9 @@ class SettingsPanel {
         </div>
         <div class="setting-item" id="reminder-interval-group">
           <label>提醒间隔</label>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <input type="number" id="setting-reminder-interval" min="1" max="999" step="1" value="45" style="width:64px;padding:5px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;color:#555;background:#fff;outline:none;text-align:center;">
-            <span style="font-size:13px;color:#888;">分钟</span>
+          <div class="interval-input">
+            <input type="number" id="setting-reminder-interval" min="1" max="999" step="1" value="45">
+            <span class="unit">分钟</span>
           </div>
         </div>
         <div class="setting-item">
