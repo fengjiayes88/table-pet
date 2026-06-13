@@ -2,230 +2,360 @@
 
 ## 使用说明
 
-### 推荐工具
-| 工具 | 入口 | 适合场景 |
-|------|------|----------|
-| **Midjourney** | Discord | 风格质量最高，角色一致性用 `--cref` 参数 |
-| **DALL·E 3**（ChatGPT 内置） | chat.openai.com | 交互式调整，方便迭代 |
-| **即梦**（字节） | jimeng.jianying.com | 国内免费，支持图生图、风格转绘 |
-| **Stable Diffusion + WebUI** | 本地部署 | 批量生成，完全可控 |
+### 首选工具：即梦
 
-### 核心流程
-```
-步骤1: 提供七七照片 → 生成「角色设定图」（站立四视图）
-步骤2: 用角色设定图作为参考 → 生成各动画状态的「关键帧」
-步骤3: 将关键帧拼接成精灵图（用 TexturePacker 或手动 PS）
-```
+| 项目 | 说明 |
+|------|------|
+| **官网** | jimeng.jianying.com（字节跳动旗下） |
+| **费用** | 国内免费使用，每日有免费额度 |
+| **推荐理由** | 中文提示词友好、图生图效果好、风格转绘成熟、操作简单 |
 
-### Midjourney 关键技巧
-- **上传七七照片**到 Discord，获取图片链接
-- 在 prompt 开头用 `[图片链接]` 作为图生图参考
-- 加 `--cref [角色设定图链接]` 保持角色一致性
-- 加 `--iw 1.5` 提高参考图权重
+### 备用工具
+| 工具 | 适合场景 |
+|------|----------|
+| DALL·E 3（ChatGPT 内置） | 交互式调整，方便迭代 |
+| Midjourney（Discord） | 风格质量最高（需科学上网） |
+| Stable Diffusion | 本地部署，批量生成 |
 
 ---
 
-## 一、角色设定图（先做这个！）
+## ⭐ 七七的核心特征（生成时必须保持一致）
 
-> 这是所有后续动画的基础，需要生成一只"卡通版七七"的完整形象展示。
-> 建议先用七七照片 + 图生图方式生成。
+> 这些特征是七七的"身份证"，**每次生成图片都必须在提示词中明确写出**。
 
-### Prompt 1：基础角色设定
+| 特征 | 描述 |
+|------|------|
+| **品种** | 三花西伯利亚森林猫 |
+| **体型** | 圆润蓬松，长毛猫 |
+| **毛色** | 白色为底色 + 橘色斑块 + 深棕/黑色斑块（三花配色） |
+| **白手套** | 四只爪子末端都是纯白色（white mittens / white socks） |
+| **白色尾尖** ⭐ | **粗大蓬松的尾巴，末端有明显的白色尾尖**（this is 七七 重要特征） |
+| **耳朵** | 带簇毛（lynx tipping），耳尖有蓬松毛刺 |
+| **眼睛** | 圆圆的大眼睛，金黄色或绿色眼瞳 |
+| **鼻子** | 粉色三角小鼻子 |
+| **白色胸腹** | 胸部和腹部为白色 |
 
-```
-A cute cartoon calico Siberian forest cat with white mittens on all four paws, chibi kawaii style, 
-standing on four legs facing right side view, fluffy long fur, tufted ears,
-big round sparkling eyes, small pink nose, white chest and belly, fluffy thick tail pointing up, 
-clean simple design with soft cel shading, game character sprite style,
-white background, character reference sheet style, front view + side view,
-2D game art, Studio Ghibli inspired soft colors, --ar 16:9 --style cute
-```
-
-### Prompt 2：表情和姿态变体
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style, 
-multiple poses: sitting, lying down, walking, jumping, playing,
-same character design consistent style, sprite sheet layout,
-white background, 2D game animation reference, --cref [角色设定图链接] --ar 16:9
-```
+> **务必在每段提示词中重复"白色尾尖"这一关键特征**，因为 AI 容易忽略尾巴细节。
 
 ---
 
-## 二、精灵图提示词（按动画状态逐一生成）
+## 🎨 精灵图基础规格（重要！请先看完再生成）
 
-### 状态 1：待机动画（Idle）- 呼吸 + 眨眼 + 摇尾巴
+### 必须遵守
 
-> 目标：生成约 6 帧的待机循环
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style, sitting pose, 
-breathing animation, slight body rise and fall, fluffy tail gently swaying left and right,
-4 frames animation sequence spritesheet, side view,
-same character as reference, white background, clean lines, cel shading,
-game sprite sheet, evenly spaced frames on a single row, --cref [角色设定图链接] --ar 16:4
-```
-
-### 状态 2：走动动画（Walk）- 向左/向右
-
-> 目标：生成 8 帧行走循环
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style, 
-walking animation cycle right direction, 8 frames sprite sheet,
-four white-mittened paws stepping in sequence, fluffy tail swinging naturally behind,
-side view full body, consistent character design,
-white background, clean cel shading, game sprite sheet,
-frames evenly spaced in a single row, --cref [角色设定图链接] --ar 16:3
-```
-
-### 状态 3：点击反馈 - 跳起（Click Jump）
-
-> 目标：点击后猫咪跳起
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style, 
-surprised jump up animation, cat bouncing upward with white-mittened paws up,
-exaggerated squash and stretch, excited expression, big eyes,
-4 frame animation sprite sheet, side view, white background,
-game sprite style, clean cel shading, --cref [角色设定图链接] --ar 16:4
-```
-
-### 状态 4：点击反馈 - 歪头（Head Tilt）
-
-> 目标：猫咪歪头卖萌
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style sitting pose,
-head tilting to the side curiously, tufted ears perked,
-4 frame animation sprite sheet, front view looking at viewer,
-questioning cute expression, white background, game sprite style, --cref [角色设定图链接] --ar 16:4
-```
-
-### 状态 5：点击反馈 - 伸爪（Paw Reach）
-
-> 目标：猫咪伸爪子抓空气
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style sitting pose,
-reaching out one white-mittened front paw playfully, pawing at the air,
-4 frame animation sprite sheet, side view, playful expression,
-white background, game sprite style, --cref [角色设定图链接] --ar 16:4
-```
-
-### 状态 6：撒娇 - 打滚（Double Click / Roll）
-
-> 目标：双击后猫咪打滚露肚皮
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style,
-rolling on the ground animation, from sitting to lying on back showing belly,
-8 frame animation sprite sheet, side view,
-happy relaxed expression, white-mittened paws curled up, white background,
-game sprite style, --cref [角色设定图链接] --ar 16:3
-```
-
-### 状态 7：拖拽 - 被拎起（Dragged / Picked Up）
-
-> 目标：拖拽时猫咪被拎起的样子
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style,
-being picked up by the scruff, body dangling, white-mittened paws hanging down,
-slightly surprised but calm expression, 2 frame sprite sheet,
-side view, white background, game sprite style, --cref [角色设定图链接] --ar 16:2
-```
-
-### 状态 8：提醒动画（Reminder）
-
-> 目标：猫咪站起来拍屏幕提醒休息
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style,
-standing on hind legs, white-mittened front paws tapping on an invisible glass screen,
-reminder gesture, friendly concerned expression,
-6 frame animation sprite sheet, front-facing view,
-white background, game sprite style, --cref [角色设定图链接] --ar 16:4
-```
-
-### 状态 9：睡觉（可选，后续版本）
-
-```
-[上传角色设定图链接] cute cartoon calico Siberian forest cat with white mittens chibi style,
-sleeping pose curled up in a circle, fluffy tail wrapped around body,
-gentle breathing, occasionally tufted ear twitch,
-4 frame animation sprite sheet, top-down or side view,
-white background, game sprite style, peaceful expression, --cref [角色设定图链接] --ar 16:4
-```
-
----
-
-## 三、UI 和图标素材
-
-### 托盘图标 Prompt
-
-```
-Cute calico Siberian forest cat face icon with white chin, chibi kawaii style, 
-round minimalist design, big eyes, pink nose,
-app icon style, flat design with soft shadows, 
-transparent background, 48x48 pixel icon, --ar 1:1
-```
-
-### 休息提醒气泡 Prompt
-
-```
-Speech bubble UI element, rounded rectangle, 
-soft warm color #FFF8E7, subtle shadow,
-clean minimal style, suitable for text display,
-transparent background, game UI element, --ar 4:1
-```
-
----
-
-## 四、精灵图拼合指南
-
-生成各动画的关键帧后，推荐以下工具拼成精灵图（Sprite Sheet）：
-
-| 工具 | 链接 | 免费 |
+| 项目 | 要求 | 说明 |
 |------|------|------|
-| **TexturePacker** | codeandweb.com/texturepacker | ❌ 收费 |
-| **Free Texture Packer** | free-tex-packer.com | ✅ |
-| **Shoebox** | renderhjs.net/shoebox | ✅ |
-| **Leshy SpriteSheet Tool** | leshy-labs.itch.io | ✅ |
-| **手动 Photoshop** | - | ✅ |
+| **背景** | ⭐ **透明背景（PNG with alpha）** | 白色背景会显示成白方块，桌宠效果会很丑。一定要透明！ |
+| **格式** | PNG | 不要用 JPG（JPG 不支持透明） |
+| **画风一致** | 所有动作图保持同一风格 | 用同一张参考图反复生成 |
+| **角色一致** | 毛色花纹、体型完全相同 | 通过"图生图→风格转绘"保证 |
+| **每帧大小相同** | 每张帧严格等宽等高 | 程序按等比例切片 |
 
-### 精灵图规格建议
-- 单帧尺寸：128x128 或 256x256 px
-- 帧间距：0px（紧密排列）
-- 格式：PNG（透明背景）
-- 命名规范：`qixi_idle.png`、`qixi_walk.png`、`qixi_jump.png` 等
+### 动作序列必须连贯！⭐
 
----
+> **这是最容易被忽略但最重要的要求**。
 
-## 五、建议操作顺序
+- 每个动作的多帧必须是**同一动作的不同瞬间**，按时间顺序排列：第 1 帧 → 第 2 帧 → 第 3 帧 → 第 4 帧
+- **角色姿势**应当从一个状态平滑过渡到下一个状态（每帧只发生小幅度变化）
+- **位置/朝向**保持稳定，不要每帧角色位置乱跳
+- **画面构图**保持一致（角色在画面中的位置、缩放比例不变）
+- 如果是循环动作（idle、walk），最后一帧要能**自然衔接回第一帧**
+- **不要**让 AI 生成"4 个不同动作"，而要"1 个动作的 4 个连续瞬间"
 
-1. **先选一张七七最清晰的正面/侧面照片**作为参考
-2. **用 Prompt 1** 生成角色设定图
-3. **挑最满意的角色设定图**，记下图片链接
-4. **替换所有 `[上传角色设定图链接]`** 为你的角色图链接
-5. **逐个生成动画状态**的精灵图
-6. **拼合精灵图**，放到项目的 `assets/sprites/` 目录
+❌ 错误示例：4 帧分别是「坐着」「站着」「走路」「躺下」 — 不连贯  
+✅ 正确示例：4 帧分别是「尾巴左」「尾巴中」「尾巴右」「尾巴中」 — 连贯循环
 
 ---
 
-## 六、如果 AI 生成的猫不像七七怎么办？
+## 一、即梦使用技巧
 
-1. **用即梦/Stable Diffusion 的图生图**：上传七七照片，选择「风格转绘」→「卡通」，效果最好
-2. **人工修图**：选最接近的生成图，用 PS 调整毛色花纹使其更像七七
-3. **多次迭代**：每次生成 4 张，挑最像的继续作为下一次的参考图
+### 角色一致性技巧
+- 第一步生成角色设定图后，**保存该图为参考图**
+- 后续生成动画帧时，点击"图生图"模式，上传参考图
+- 选择"风格转绘"而非"智能生成"，能更好保持角色一致
+- 如果角色有偏差，增加对毛色花纹和**白色尾尖**的详细描述
+
+### 透明背景生成技巧 ⭐
+- 即梦生成时**先用白色背景或灰色背景**（更易获得高质量图）
+- 生成完成后下载，再用以下任一工具**抠白底变透明**：
+  - **remove.bg**（remove.bg）— 在线一键抠图，质量好
+  - **Photopea**（photopea.com）— 在线 PS，免费
+  - **Photoshop** — 魔棒工具选白底，删除后保存为 PNG
+  - **图片工厂** / **美图秀秀** — 桌面工具，去除白底功能
+- 抠图后**保存为 PNG 格式**（必须勾选"透明背景"）
+
+### 生成动画帧的技巧
+- 即梦对**连续动作帧**支持较好，建议**一段提示词描述 4 帧动作序列**
+- 在提示词中**强调"动作连贯"、"逐帧变化平滑"、"同一镜头不同时刻"**
+- 如果一图生成超过 4 帧画面，角色容易变形，建议**每图 4 帧**，分多次生成
+- 生成时**选择"白色背景"**（方便后续抠图，不要用复杂背景）
+- 首选生成"侧面视角"，后续动画更统一
+
+### 提示词原则（适用于即梦）
+- **中文提示词**效果通常优于英文
+- 开头描述整体角色（品种、毛色、体型、**白色尾尖**）
+- 中间描述具体动作和表情，**强调连贯性**
+- 结尾指定**画风、背景、构图**等
+- 示例格式：`一只卡通风格的三花西伯利亚森林猫，四只白手套爪子，蓬松大尾巴末端有白色尾尖，[具体动作描述，连贯的4帧动作序列]，游戏精灵图风格，白色背景便于抠图`
 
 ---
 
-> 💡 提示：所有 prompt 已按七七形象设置 —— **西伯利亚森林猫（Siberian forest cat）+ 花猫（calico）+ 白手套（white mittens）**。
-> 七七是西伯利亚森林猫品种，特征为：长毛蓬松、耳朵带簇毛（tufted ears）、大骨架、厚实的尾巴。
-> 白手套指四只爪子为白色，calico 指身体有白/橘/黑三色斑块花纹。
-> 如果你觉得生成效果不够像七七，可以在 prompt 中补充更具体的毛色分布描述。
+## 二、角色设定图（最先做！）
+
+> 这是所有后续动画的基础。建议先上传一张七七照片，用即梦的**图生图→风格转绘**功能生成卡通版。
+
+### 步骤 1：准备七七照片
+- 选一张七七最清晰的正面或侧面全身照
+- **特别注意尾巴露出，让 AI 学到白色尾尖特征**
+- 背景尽量简洁
+
+### 步骤 2：即梦提示词（推荐使用中文）
+
+```
+一只可爱的卡通风格三花西伯利亚森林猫，四只爪子都有白手套，粗大蓬松的尾巴末端有明显的白色尾尖，站立姿势、体型圆润的Q版风格，长毛蓬松，耳朵带簇毛，圆圆的大眼睛闪闪发光，粉色小鼻子，白色胸腹，尾巴高高翘起、白色尾尖清晰可见，干净简洁的平涂上色风格，游戏角色立绘风格，白色纯色背景便于抠图，2D游戏美术，吉卜力风格的柔和色彩，正面和侧面视角的角色设定图。
+
+画风参考：卡通、Q版、平涂、游戏精灵图风格
+关键特征：白手套四爪、白色尾尖、三花毛色
+```
+
+### 步骤 3：表情和姿态参考图
+选中上一步最满意的角色设定图作为参考图，用即梦"图生图"功能生成：
+
+```
+[上传你满意的角色设定图作为参考图]
+同一只三花西伯利亚森林猫，多种姿态组合：坐着、趴着、走路中、伸懒腰，保持相同的角色设计和画风，特别保留四只白手套爪子和白色尾尖特征，精灵图布局，白色纯色背景便于抠图，2D游戏美术风格。
+```
+生成方式：图生图 → 风格转绘模式
 
 ---
 
-*最后更新：2026-06-11*
+## 三、各状态精灵图提示词（用即梦逐个生成）
+
+> 所有步骤都建议使用**步骤 2 中你最满意的角色设定图作为参考图**，选择即梦的"图生图"功能。
+> **每张图都生成 4 帧连贯动作，方便程序加载**（程序默认按 4 帧切片）。
+
+---
+
+### 状态 1：待机动画（Idle）— 呼吸 + 眨眼 + 摇尾巴
+
+> 目标：4 帧待机循环（最后一帧能自然衔接回第一帧）
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版风格四只白手套爪子，蓬松大尾巴末端有白色尾尖。坐着不动的同一只猫，连贯的4帧待机循环动画：第1帧身体微微下沉、尾巴向左、眼睛睁开；第2帧身体回中、尾巴中位、眼睛半闭；第3帧身体微微抬起、尾巴向右、眼睛闭合；第4帧身体回中、尾巴中位、眼睛半睁。强调动作平滑连贯、姿势位置稳定不跳变。侧面视角，画面构图保持一致，保持与参考图一致的角色设计、毛色花纹、白手套和白色尾尖。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+生成方式：图生图 → 风格转绘模式  
+保存为：`idle@4.png`（抠成透明背景）
+
+---
+
+### 状态 2：走动动画（Walk）— 向右走动循环
+
+> 目标：4 帧行走循环（左前爪→右前爪→左后爪→右后爪 节奏循环）
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版四只白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫向右行走的连贯4帧动画循环：第1帧右前爪抬起、左后爪抬起、尾巴向左摆；第2帧四爪着地、尾巴回中；第3帧左前爪抬起、右后爪抬起、尾巴向右摆；第4帧四爪着地、尾巴回中。强调动作平滑连贯、身体位置稳定（不要乱跳），整套循环帧之间的姿势变化要小且过渡自然。侧面全身视角，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`walk@4.png`（抠成透明背景）
+
+如果需要更细腻 8 帧，可分两次生成：`walk1@4.png` + `walk2@4.png`，程序会自动拼接为 8 帧。
+
+---
+
+### 状态 3：跳起（Jump）— 点击触发
+
+> 目标：4 帧跳跃动画（蹲→起跳→腾空→落地）。也可拆为 jump1@4 + jump2@4 共 8 帧。
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫受到惊喜弹跳起来的连贯4帧动画：第1帧下蹲蓄力、四爪压低；第2帧腾空起跳、四爪离地、身体拉伸；第3帧腾空最高点、惊讶圆睁大眼、尾巴上翘白色尾尖明显；第4帧落地缓冲、四爪着地、身体回弹。强调动作连贯、有夸张的挤压拉伸感。侧面视角，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`jump@4.png` 或拆分 `jump1@4.png` + `jump2@4.png`（抠成透明背景）
+
+---
+
+### 状态 4：歪头（Head Tilt）— 点击触发
+
+> 目标：4 帧歪头动画（正→右倾→最大倾斜→回正）
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫坐着歪头的连贯4帧动画：第1帧头部正中；第2帧头部慢慢向右倾斜约15度；第3帧头部最大倾斜约30度、好奇卖萌；第4帧头部回到正中。耳朵随头部自然晃动，强调动作平滑连贯、身体姿态稳定（仅头部动）。正面视角，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`head-tilt@4.png`（抠成透明背景）
+
+---
+
+### 状态 5：伸爪（Paw Reach）— 点击触发
+
+> 目标：4 帧伸爪动画（缩→伸→最远→缩）
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫坐着伸出右前爪去抓空中东西的连贯4帧动画：第1帧爪子贴近身体；第2帧爪子伸到一半；第3帧爪子完全伸直最远点、好奇玩闹的表情；第4帧爪子缩回贴身。强调动作平滑连贯、身体姿态稳定（仅爪子动）。侧面视角，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`paw-reach@4.png`（抠成透明背景）
+
+---
+
+### 状态 6：打滚（Roll）— 双击触发
+
+> 目标：4 帧打滚动画（坐→侧倒→翻肚→翻回）。也可拆为 roll1@4 + roll2@4 共 8 帧。
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫在地上翻滚的连贯4帧动画：第1帧坐姿；第2帧向右侧倒；第3帧仰躺翻出白色肚皮、四只白手套爪子蜷曲在空中；第4帧翻回侧卧准备起身。整套动作流畅自然，强调动作连贯。侧面视角，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`roll@4.png` 或拆分 `roll1@4.png` + `roll2@4.png`（抠成透明背景）
+
+---
+
+### 状态 7：拖拽中（Dragged）— 长按拖拽
+
+> 目标：4 帧被拎起动画（轻微摆动）
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版四只白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫被人捏着后颈拎起来的连贯4帧动画：第1帧四爪自然下垂、尾巴稍向左；第2帧四爪下垂、尾巴回中；第3帧四爪下垂、尾巴稍向右；第4帧四爪下垂、尾巴回中。脑袋微垂、略惊讶但平静的表情，整套动作只有尾巴和身体的微微摆动。强调姿态稳定，仅有细微变化。侧面视角，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`dragged@4.png`（抠成透明背景）
+
+---
+
+### 状态 8：站立提醒（Reminder）— 定时触发
+
+> 目标：4 帧站立提醒动画（双爪交替拍打）
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫用后腿站起来、双前爪拍打空中的连贯4帧动画：第1帧右白手套前爪抬高、左白手套前爪低；第2帧两白手套前爪都在中间；第3帧左白手套前爪抬高、右白手套前爪低；第4帧两白手套前爪都在中间。提醒/关心的表情，强调动作平滑连贯、身体姿态稳定。正面全身视角，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`reminder@4.png`（抠成透明背景）
+
+---
+
+### 状态 9：睡觉（可选）
+
+> 目标：4 帧呼吸起伏动画
+
+```
+[上传角色设定图作为参考图]
+一只三花西伯利亚森林猫，Q版白手套爪子，蓬松大尾巴末端有白色尾尖。同一只猫蜷缩成一团睡觉的连贯4帧动画：第1帧身体最低位、呼气；第2帧身体微抬、吸气；第3帧身体最高位、吸气至顶；第4帧身体落回中位、呼气。蓬松大尾巴环绕身体、白色尾尖搭在头边。耳朵偶尔抖动，强调动作非常细微平滑。从侧面或微俯视看，画面构图保持一致，保留四只白手套爪子和白色尾尖特征。白色纯色背景便于抠图，干净平涂风格，游戏精灵图水平排列。
+```
+保存为：`sleep@4.png`（抠成透明背景）
+
+---
+
+## 四、UI 和图标素材
+
+### 托盘图标（用即梦生成）
+
+> 产品需求：32x32 猫脸图标
+
+```
+三花西伯利亚森林猫的圆形头像图标，Q版可爱风格，白色下巴和白色胸毛，大眼睛、粉色小鼻子，扁平极简设计，应用图标风格，卡通猫咪logo，纯色或透明背景。
+```
+生成后在 PS 里裁剪成 32x32 的 PNG 即可（必须透明背景）。
+
+### 设置窗口图标（可选）
+
+如果托盘图标效果不错，可同时用作应用图标，将路径放到 `package.json` 的 `build.win.icon` 配置中。
+
+---
+
+## 五、抠图与精灵图拼合指南
+
+### 第 1 步：抠白底变透明
+
+| 工具 | 链接 / 说明 |
+|------|------|
+| **remove.bg**（推荐） | remove.bg — 在线一键去白底，质量好，免费 |
+| **Photopea** | photopea.com — 网页版 PS，免费 |
+| **Photoshop** | 桌面版，魔棒工具选白底删除 |
+| **美图秀秀 / 图片工厂** | 桌面工具，"抠图"功能 |
+
+抠图完成后**必须保存为 PNG 格式（透明背景）**。
+
+### 第 2 步：拼合精灵图（如果即梦一次没生成完）
+
+| 工具 | 说明 |
+|------|------|
+| **Photoshop / Photopea** | 手动拼接，最灵活 |
+| **Free Texture Packer**（free-tex-packer.com）| 在线、免费 |
+| **Shoebox**（renderhjs.net/shoebox）| 免费、轻量 |
+
+#### 拼合步骤
+1. 抠透明完成后，用 PS 或 Photopea 裁出每个单帧（**等宽等高**）
+2. 将同状态的 4 帧按时间顺序水平排列（从左到右依次为帧 0、1、2、3）
+3. 帧间距 0px（紧密排列）
+4. 导出为一张 PNG，**保存时勾选"透明背景"**
+
+### 精灵图规格
+- 单帧建议尺寸：**128x128** 或 **150x150** px（当前画布 180x180 可容纳）
+- 帧间距：0px
+- 格式：PNG（**必须透明背景**）
+- 命名规范：见下文文件存放位置
+
+---
+
+## 六、文件存放位置和命名规范
+
+### 命名规则（重要）
+
+程序按以下规则查找和加载精灵图：
+
+| 命名格式 | 说明 |
+|---------|------|
+| `状态名@N.png` ⭐推荐 | `@N` 显式声明帧数，例：`idle@4.png` 表示 4 帧 |
+| `状态名.png` | 默认按 4 帧处理 |
+| `状态名1.png`、`状态名2.png` | 多文件按顺序拼接，例：`jump1@4.png` + `jump2@4.png` 共 8 帧 |
+
+### 完整文件清单
+
+精灵图生成、抠图、拼合后，放到项目目录：
+
+```
+d:\workspace\freebuild\table-pet\assets\sprites\
+  ├── idle@4.png        # 待机 4 帧
+  ├── walk@4.png        # 走动 4 帧
+  ├── jump@4.png        # 跳起 4 帧（或 jump1@4.png + jump2@4.png）
+  ├── head-tilt@4.png   # 歪头 4 帧
+  ├── paw-reach@4.png   # 伸爪 4 帧
+  ├── roll@4.png        # 打滚 4 帧（或 roll1@4.png + roll2@4.png）
+  ├── dragged@4.png     # 拖拽 4 帧
+  ├── reminder@4.png    # 提醒 4 帧
+  └── sleep@4.png       # 睡觉 4 帧
+```
+
+托盘图标和 App 图标：
+
+```
+d:\workspace\freebuild\table-pet\assets\
+  ├── tray-icon.png    # 托盘图标 32x32（透明背景）
+  └── icon.ico         # 应用图标（打包用）
+```
+
+> **没有的状态会自动回退到 Canvas 占位绘制**，所以你可以分批生成、逐步替换。
+
+---
+
+## 七、如果即梦生成效果不够像七七怎么办？
+
+1. **提高参考图权重**：图生图时可选"更接近参考图"的强度
+2. **明确强调白色尾尖**：每段提示词都重复"白色尾尖"特征
+3. **手动精修毛色和尾尖**：选最接近的生成图，用 PS 调整花纹分布或补涂尾尖
+4. **多次迭代**：每次生成 3-4 张，挑最像的作为下一次的参考图
+5. **拆分生成**：先生成单帧角色立绘，再单独生成动作细节
+6. **补充七七特征描述**：在提示词中补充七七身上的具体花纹分布（比如某块橘色在左额、某块深色在右腰等）
+7. **动作不连贯时**：在提示词里反复强调"4帧连贯动作"、"逐帧细微变化"、"同一镜头不同瞬间"
+
+---
+
+> 七七品种特征：西伯利亚森林猫 —— 长毛蓬松、耳朵带簇毛、骨架偏大、粗尾、颈部有明显鬃毛。
+> 毛色：三花（calico）—— 身体分布白色+橘色+深棕色斑块。四肢为白手套（white mittens）。⭐ **尾巴末端有显著的白色尾尖（white tail tip）**。
+> 即梦的图生图模式对这些特征还原度较好，尤其风格转绘模式可以把你上传的七七照片直接转化为卡通风格。
+
+---
+
+*最后更新：2026-06-12*

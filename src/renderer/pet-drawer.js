@@ -10,6 +10,96 @@ class PetDrawer {
     this.lookX = 0;   // 视线方向 (-1 左, 0 中, 1 右)
     this.lookY = 0;   // 视线方向 (-1 上, 0 中, 1 下)
     this.direction = 1; // 1 = 朝右, -1 = 朝左
+
+    // 精灵图相关
+    this.sprites = {};       // { state: { images: [{img, frames}], totalFrames, loaded } }
+    this._loadSprites();
+  }
+
+  // ── 精灵图加载 ──
+  _loadSprites() {
+    const states = [
+      'idle', 'walk', 'jump', 'headTilt', 'pawReach',
+      'roll', 'dragged', 'reminder', 'sleep'
+    ];
+    const fileNameMap = {
+      idle: 'idle',
+      walk: 'walk',
+      jump: 'jump',
+      headTilt: 'head-tilt',
+      pawReach: 'paw-reach',
+      roll: 'roll',
+      dragged: 'dragged',
+      reminder: 'reminder',
+      sleep: 'sleep',
+    };
+
+    states.forEach((state) => {
+      const baseName = fileNameMap[state];
+      // 候选文件名：
+      // - 单文件：base.png 或 base@N.png（N=帧数）
+      // - 多文件：base1.png ... base9.png 或 base1@N.png ... base9@N.png
+      // 帧数解析优先级：文件名 @N > 自动推算（图宽 ÷ 图高，假设每帧正方形）
+      const candidates = [];
+      candidates.push({ name: `${baseName}.png`, order: 0 });
+      for (let n = 1; n <= 9; n++) {
+        candidates.push({ name: `${baseName}@${n}.png`, order: 0, declaredFrames: n });
+      }
+      for (let i = 1; i <= 9; i++) {
+        candidates.push({ name: `${baseName}${i}.png`, order: i });
+        for (let n = 1; n <= 9; n++) {
+          candidates.push({ name: `${baseName}${i}@${n}.png`, order: i, declaredFrames: n });
+        }
+      }
+
+      const entry = { images: [], totalFrames: 0, loaded: false };
+      this.sprites[state] = entry;
+
+      let pendingCount = candidates.length;
+      const tryFinalize = () => {
+        pendingCount--;
+        if (pendingCount === 0) {
+          // 同 order 只保留一个：优先有 declaredFrames 的
+          const byOrder = new Map();
+          for (const im of entry.images) {
+            const exist = byOrder.get(im.order);
+            if (!exist || (im.declared && !exist.declared)) {
+              byOrder.set(im.order, im);
+            }
+          }
+          entry.images = [...byOrder.values()].sort((a, b) => a.order - b.order);
+          entry.totalFrames = entry.images.reduce((sum, im) => sum + im.frames, 0);
+          if (entry.images.length > 0) {
+            entry.loaded = true;
+            const desc = entry.images.map((i) => `${i.fileName}(${i.frames}帧)`).join(', ');
+            console.log(`[SPRITE] 加载: ${state} -> ${desc} (共 ${entry.totalFrames} 帧)`);
+          }
+        }
+      };
+
+      candidates.forEach((c) => {
+        const img = new Image();
+        img.src = `../../assets/sprites/${c.name}`;
+        img.onload = () => {
+          let frames;
+          if (c.declaredFrames) {
+            frames = c.declaredFrames;
+          } else {
+            // 未声明帧数时，默认按 4 帧处理
+            frames = 4;
+          }
+          entry.images.push({
+            img,
+            frames,
+            order: c.order,
+            fileName: c.name,
+            declared: !!c.declaredFrames,
+          });
+          tryFinalize();
+        };
+        img.onerror = () => tryFinalize();
+      });
+    });
   }
 
   // ── 颜色配置 ──
@@ -42,6 +132,12 @@ class PetDrawer {
    */
   drawFrame(ctx, canvasW, canvasH, state, frameIndex, totalFrames) {
     ctx.clearRect(0, 0, canvasW, canvasH);
+
+    // 优先尝试用精灵图渲染
+    if (this._drawSprite(ctx, canvasW, canvasH, state, frameIndex, totalFrames)) {
+      return;
+    }
+
     const cx = canvasW / 2;
     const cy = canvasH * 0.52;
 
@@ -67,6 +163,54 @@ class PetDrawer {
     }
 
     ctx.restore();
+  }
+
+  /**
+   * 尝试用精灵图绘制；返回 true 表示成功，false 表示需要回退到 Canvas 绘制
+   * 支持单文件多帧 (idle.png) 或多文件拼接 (jump.png + jump1.png + jump2.png)
+   */
+  _drawSprite(ctx, canvasW, canvasH, state, frameIndex, totalFrames) {
+    const entry = this.sprites[state];
+    if (!entry || !entry.loaded || entry.images.length === 0) return false;
+
+    const total = entry.totalFrames;
+    // 统一用 entry.totalFrames 计算当前应播放的全局帧索引
+    const idx = ((frameIndex % total) + total) % total;
+
+    // 根据全局 idx 找到对应文件和该文件内的帧序号
+    let img = null, frameW = 0, frameH = 0, localIdx = 0;
+    let acc = 0;
+    for (const im of entry.images) {
+      if (idx < acc + im.frames) {
+        img = im.img;
+        localIdx = idx - acc;
+        frameH = im.img.naturalHeight;
+        frameW = im.img.naturalWidth / im.frames;
+        break;
+      }
+      acc += im.frames;
+    }
+    if (!img) return false;
+
+    const sx = localIdx * frameW;
+
+    // 等比缩放铺满画布（保持比例，居中）
+    const scale = Math.min(canvasW / frameW, canvasH / frameH);
+    const dw = frameW * scale;
+    const dh = frameH * scale;
+    const dx = (canvasW - dw) / 2;
+    const dy = (canvasH - dh) / 2;
+
+    ctx.save();
+    if (this.direction === -1) {
+      ctx.translate(canvasW, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, sx, 0, frameW, frameH, dx, dy, dw, dh);
+    ctx.restore();
+    return true;
   }
 
   // ═══════════════════════════════════════════════════════

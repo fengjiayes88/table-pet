@@ -110,6 +110,32 @@
       outline: none;
     }
     select:focus { border-color: #E8923F; }
+
+    /* 退出按钮 */
+    .quit-row {
+      padding: 14px 0 4px;
+      display: flex;
+      justify-content: center;
+    }
+    .quit-btn {
+      width: 100%;
+      padding: 9px 14px;
+      border: 1px solid #f5c2c7;
+      background: #fff5f5;
+      color: #c0392b;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .quit-btn:hover {
+      background: #ffe7e7;
+      border-color: #e8a4a9;
+    }
+    .quit-btn:active {
+      background: #ffd6d6;
+    }
   </style>
 </head>
 <body>
@@ -160,6 +186,9 @@
         <input type="checkbox" id="autolaunch" checked>
         <span class="switch-slider"></span>
       </label>
+    </div>
+    <div class="quit-row">
+      <button class="quit-btn" id="quit-btn">退出七七</button>
     </div>
   </div>
 
@@ -223,6 +252,13 @@
 
       remIntEl.addEventListener('change', () => apply('reminderInterval', parseInt(remIntEl.value)));
       autoEl.addEventListener('change', () => apply('autoLaunch', autoEl.checked));
+
+      // 退出
+      $('quit-btn').addEventListener('click', () => {
+        if (confirm('确定要退出七七桌面宠物吗？')) {
+          window.electronAPI.quitApp();
+        }
+      });
     })();
   </script>
 </body>

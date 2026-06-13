@@ -86,23 +86,32 @@ function createWindow() {
   // 调试：取消注释下行可打开 DevTools
   // mainWindow.webContents.openDevTools({ mode: 'detach' });
 
-  // 防御：如检测到尺寸变化，立即恢复
+  // 防御：如检测到尺寸变化，立即恢复（始终使用最新设置算出的目标尺寸）
   mainWindow.on('resize', () => {
-    if (!mainWindow || mainWindow._expanded) return;
-    const [w, h] = mainWindow.getSize();
-    if (w !== winWidth || h !== winHeight) {
-      const [x, y] = mainWindow.getPosition();
-      mainWindow.setBounds({ x, y, width: winWidth, height: winHeight });
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow._expanded || isQuitting) return;
+    try {
+      const targetSize = Math.round(180 * settings.size);
+      const [w, h] = mainWindow.getSize();
+      if (w !== targetSize || h !== targetSize) {
+        const [x, y] = mainWindow.getPosition();
+        mainWindow.setBounds({ x, y, width: targetSize, height: targetSize });
+      }
+    } catch (e) {
+      // 退出过程中可能失败，忽略
     }
   });
 
   // 保存位置
   mainWindow.on('moved', () => {
-    if (mainWindow) {
-      const [x, y] = mainWindow.getPosition();
-      settings.x = x;
-      settings.y = y;
-      saveSettings(settings);
+    if (mainWindow && !mainWindow.isDestroyed() && !isQuitting) {
+      try {
+        const [x, y] = mainWindow.getPosition();
+        settings.x = x;
+        settings.y = y;
+        saveSettings(settings);
+      } catch (e) {
+        // 退出过程中忽略
+      }
     }
   });
 
@@ -293,7 +302,7 @@ function createSettingsWindow() {
 
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
   const winW = 340;
-  const winH = 410;
+  const winH = 470;
 
   settingsWindow = new BrowserWindow({
     width: winW,
@@ -325,6 +334,24 @@ function createSettingsWindow() {
 // 打开设置窗口（替换原 expand-window 逻辑）
 ipcMain.on('open-settings-window', () => {
   createSettingsWindow();
+});
+
+ipcMain.on('quit-app', () => {
+  isQuitting = true;
+  // 先关闭设置窗口（如果存在），避免渲染进程崩溃影响主进程
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.destroy();
+    settingsWindow = null;
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.destroy();
+    mainWindow = null;
+  }
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+  app.quit();
 });
 
 // ── 应用生命周期 ────────────────────────────────────────

@@ -37,6 +37,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('open-settings-window');
   },
 
+  // 退出应用
+  quitApp: () => {
+    ipcRenderer.send('quit-app');
+  },
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
