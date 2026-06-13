@@ -110,6 +110,32 @@
       outline: none;
     }
     select:focus { border-color: #E8923F; }
+    .interval-input {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .interval-input input[type="number"] {
+      width: 64px;
+      padding: 5px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #555;
+      background: #fff;
+      outline: none;
+      text-align: center;
+    }
+    .interval-input input[type="number"]:focus { border-color: #E8923F; }
+    .interval-input input[type="number"]:disabled {
+      background: #f5f5f5;
+      color: #aaa;
+      cursor: not-allowed;
+    }
+    .interval-input .unit {
+      font-size: 13px;
+      color: #888;
+    }
 
     /* 退出按钮 */
     .quit-row {
@@ -173,12 +199,10 @@
     </div>
     <div class="item" id="interval-group">
       <label>提醒间隔</label>
-      <select id="reminder-interval">
-        <option value="15">15 分钟</option>
-        <option value="30">30 分钟</option>
-        <option value="45" selected>45 分钟</option>
-        <option value="60">60 分钟</option>
-      </select>
+      <div class="interval-input">
+        <input type="number" id="reminder-interval" min="1" max="999" step="1" value="45">
+        <span class="unit">分钟</span>
+      </div>
     </div>
     <div class="item">
       <label>开机自启</label>
@@ -250,7 +274,13 @@
         apply('reminderEnabled', en);
       });
 
-      remIntEl.addEventListener('change', () => apply('reminderInterval', parseInt(remIntEl.value)));
+      remIntEl.addEventListener('change', () => {
+        let v = parseInt(remIntEl.value, 10);
+        if (isNaN(v) || v < 1) v = 1;
+        if (v > 999) v = 999;
+        remIntEl.value = v;
+        apply('reminderInterval', v);
+      });
       autoEl.addEventListener('change', () => apply('autoLaunch', autoEl.checked));
 
       // 退出

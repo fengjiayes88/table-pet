@@ -197,7 +197,7 @@ class PetController {
       isMouseDown = false;
       if (this.isDragging) {
         this._endDrag();
-      } else if (!mouseMoved && this.state !== this.STATES.REMINDER) {
+      } else if (!mouseMoved) {
         clickCount++;
         if (clickCount === 1) {
           clickTimer = setTimeout(() => { clickCount = 0; this._onSingleClick(); }, 300);
@@ -255,13 +255,19 @@ class PetController {
   // ── 交互事件处理 ──
 
   _onSingleClick() {
+    // 提醒状态下单击不响应（仅双击可解除）
+    if (this.state === this.STATES.REMINDER) return;
     if (this.state !== this.STATES.IDLE) return;
     const action = this.clickActions[Math.floor(Math.random() * this.clickActions.length)];
     this._switchState(action);
   }
 
   _onDoubleClick() {
-    if (this.state === this.STATES.REMINDER) return;
+    // 提醒状态：双击解除提醒
+    if (this.state === this.STATES.REMINDER) {
+      this.reminder.reset();
+      return;
+    }
     this._switchState(this.STATES.ROLL);
   }
 
@@ -404,8 +410,8 @@ class PetController {
 
     // 计算当前帧
     if (this.state === this.STATES.IDLE) {
-      // 空闲：循环动画
-      this.frameIndex = Math.floor((elapsed / 120) % this.totalFrames);
+      // 空闲：循环动画（300ms / 帧，节奏舒缓）
+      this.frameIndex = Math.floor((elapsed / 300) % this.totalFrames);
 
       // 闲置过久触发随机走动
       this.idleTime = elapsed;
@@ -414,6 +420,15 @@ class PetController {
         this.animFrameId = requestAnimationFrame(() => this._renderLoop());
         return;
       }
+    } else if (this.state === this.STATES.REMINDER) {
+      // 提醒：循环播放精灵图（150ms / 帧），直到双击解除
+      this.frameIndex = Math.floor((elapsed / 150) % this.totalFrames);
+    } else if (this.state === this.STATES.DRAGGED) {
+      // 拖拽：循环播放
+      this.frameIndex = Math.floor((elapsed / 120) % this.totalFrames);
+    } else if (this.state === this.STATES.SLEEP) {
+      // 睡觉：循环播放
+      this.frameIndex = Math.floor((elapsed / 200) % this.totalFrames);
     } else {
       // 有限状态
       const progress = Math.min(elapsed / this.stateDuration, 1);

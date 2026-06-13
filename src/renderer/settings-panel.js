@@ -61,12 +61,10 @@ class SettingsPanel {
         </div>
         <div class="setting-item" id="reminder-interval-group">
           <label>提醒间隔</label>
-          <select id="setting-reminder-interval">
-            <option value="15">15 分钟</option>
-            <option value="30">30 分钟</option>
-            <option value="45" selected>45 分钟</option>
-            <option value="60">60 分钟</option>
-          </select>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" id="setting-reminder-interval" min="1" max="999" step="1" value="45" style="width:64px;padding:5px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;color:#555;background:#fff;outline:none;text-align:center;">
+            <span style="font-size:13px;color:#888;">分钟</span>
+          </div>
         </div>
         <div class="setting-item">
           <label>开机自启</label>
@@ -126,7 +124,11 @@ class SettingsPanel {
 
     // 提醒间隔
     this.panel.querySelector('#setting-reminder-interval').addEventListener('change', (e) => {
-      this._applySetting('reminderInterval', parseInt(e.target.value));
+      let v = parseInt(e.target.value, 10);
+      if (isNaN(v) || v < 1) v = 1;
+      if (v > 999) v = 999;
+      e.target.value = v;
+      this._applySetting('reminderInterval', v);
     });
 
     // 开机自启

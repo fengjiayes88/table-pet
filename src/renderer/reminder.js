@@ -98,7 +98,7 @@ class Reminder {
   /**
    * 显示提醒气泡
    */
-  showBubble(canvasElement, message = '该休息啦～起来活动一下吧！') {
+  showBubble(canvasElement, message = '该休息啦～双击我解除提醒吧！') {
     if (this.bubbleVisible) return;
 
     // 创建气泡元素
@@ -122,21 +122,12 @@ class Reminder {
     this.bubbleVisible = true;
 
     // 关闭按钮
-    this.bubbleElement.querySelector('.bubble-dismiss').addEventListener('click', () => {
+    this.bubbleElement.querySelector('.bubble-dismiss').addEventListener('click', (e) => {
+      e.stopPropagation();
       this.reset();
     });
 
-    // 点击气泡任何位置也可关闭
-    this.bubbleElement.addEventListener('click', (e) => {
-      if (!e.target.classList.contains('bubble-dismiss')) {
-        this.reset();
-      }
-    });
-
-    // 8 秒后自动消失
-    this.bubbleTimer = setTimeout(() => {
-      this.dismissBubble();
-    }, 8000);
+    // 提醒气泡保持显示，直到用户双击宠物或点击关闭按钮
   }
 
   /**
