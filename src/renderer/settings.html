@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>七七 · 设置</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #fafafa;
+      font-family: "Microsoft YaHei", -apple-system, sans-serif;
+      color: #333;
+      user-select: none;
+      overflow: hidden;
+    }
+    .header {
+      padding: 14px 20px 12px;
+      border-bottom: 1px solid #eee;
+      background: #fff;
+    }
+    .header h2 {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .body {
+      padding: 4px 20px 12px;
+      overflow-y: auto;
+      height: calc(100vh - 48px);
+    }
+    .item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #f3f3f3;
+    }
+    .item:last-child { border-bottom: none; }
+    .item > label:first-child {
+      font-size: 13px;
+      color: #555;
+      font-weight: 500;
+    }
+    .slider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .slider input[type="range"] {
+      width: 140px;
+      height: 4px;
+      -webkit-appearance: none;
+      background: #e0e0e0;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    .slider input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #E8923F;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .slider-value {
+      font-size: 12px;
+      color: #888;
+      min-width: 40px;
+      text-align: right;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+      position: absolute;
+      inset: 0;
+      background: #d0d0d0;
+      border-radius: 12px;
+      transition: background 0.25s;
+      cursor: pointer;
+    }
+    .switch-slider::before {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.25s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .switch input:checked + .switch-slider { background: #E8923F; }
+    .switch input:checked + .switch-slider::before { transform: translateX(20px); }
+    select {
+      padding: 5px 10px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #555;
+      background: #fff;
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { border-color: #E8923F; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>七七 · 设置</h2>
+  </div>
+  <div class="body">
+    <div class="item">
+      <label>宠物大小</label>
+      <div class="slider">
+        <input type="range" id="size" min="0.5" max="2.0" step="0.1" value="1.0">
+        <span class="slider-value" id="size-val">100%</span>
+      </div>
+    </div>
+    <div class="item">
+      <label>透明度</label>
+      <div class="slider">
+        <input type="range" id="opacity" min="0.2" max="1.0" step="0.05" value="0.95">
+        <span class="slider-value" id="opacity-val">95%</span>
+      </div>
+    </div>
+    <div class="item">
+      <label>始终置顶</label>
+      <label class="switch">
+        <input type="checkbox" id="ontop" checked>
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+    <div class="item">
+      <label>休息提醒</label>
+      <label class="switch">
+        <input type="checkbox" id="reminder-enabled" checked>
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+    <div class="item" id="interval-group">
+      <label>提醒间隔</label>
+      <select id="reminder-interval">
+        <option value="15">15 分钟</option>
+        <option value="30">30 分钟</option>
+        <option value="45" selected>45 分钟</option>
+        <option value="60">60 分钟</option>
+      </select>
+    </div>
+    <div class="item">
+      <label>开机自启</label>
+      <label class="switch">
+        <input type="checkbox" id="autolaunch" checked>
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <script>
+    (async () => {
+      const $ = (id) => document.getElementById(id);
+      const sizeEl = $('size'), sizeVal = $('size-val');
+      const opEl = $('opacity'), opVal = $('opacity-val');
+      const onTopEl = $('ontop');
+      const remEnEl = $('reminder-enabled');
+      const remIntEl = $('reminder-interval');
+      const intervalGroup = $('interval-group');
+      const autoEl = $('autolaunch');
+
+      // 加载初始设置
+      try {
+        const s = await window.electronAPI.getSettings();
+        if (s.size !== undefined) {
+          sizeEl.value = s.size;
+          sizeVal.textContent = Math.round(s.size * 100) + '%';
+        }
+        if (s.opacity !== undefined) {
+          opEl.value = s.opacity;
+          opVal.textContent = Math.round(s.opacity * 100) + '%';
+        }
+        if (s.alwaysOnTop !== undefined) onTopEl.checked = s.alwaysOnTop;
+        if (s.reminderEnabled !== undefined) {
+          remEnEl.checked = s.reminderEnabled;
+          intervalGroup.style.opacity = s.reminderEnabled ? '1' : '0.5';
+          remIntEl.disabled = !s.reminderEnabled;
+        }
+        if (s.reminderInterval !== undefined) remIntEl.value = s.reminderInterval;
+        if (s.autoLaunch !== undefined) autoEl.checked = s.autoLaunch;
+      } catch (e) { console.error(e); }
+
+      // 应用单项设置
+      async function apply(key, value) {
+        try {
+          await window.electronAPI.saveSettings({ [key]: value });
+        } catch (e) { console.error('保存失败:', e); }
+      }
+
+      sizeEl.addEventListener('input', () => {
+        sizeVal.textContent = Math.round(sizeEl.value * 100) + '%';
+      });
+      sizeEl.addEventListener('change', () => apply('size', parseFloat(sizeEl.value)));
+
+      opEl.addEventListener('input', () => {
+        opVal.textContent = Math.round(opEl.value * 100) + '%';
+      });
+      opEl.addEventListener('change', () => apply('opacity', parseFloat(opEl.value)));
+
+      onTopEl.addEventListener('change', () => apply('alwaysOnTop', onTopEl.checked));
+
+      remEnEl.addEventListener('change', () => {
+        const en = remEnEl.checked;
+        intervalGroup.style.opacity = en ? '1' : '0.5';
+        remIntEl.disabled = !en;
+        apply('reminderEnabled', en);
+      });
+
+      remIntEl.addEventListener('change', () => apply('reminderInterval', parseInt(remIntEl.value)));
+      autoEl.addEventListener('change', () => apply('autoLaunch', autoEl.checked));
+    })();
+  </script>
+</body>
+</html>

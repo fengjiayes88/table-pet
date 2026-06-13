@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>七七桌面宠物</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 宠物画布 -->
+  <canvas id="pet-canvas"></canvas>
+
+  <!-- 设置面板由 settings-panel.js 动态创建 -->
+
+  <!-- 模块加载 -->
+  <script src="pet-drawer.js"></script>
+  <script src="reminder.js"></script>
+  <script src="pet-controller.js"></script>
+
+  <script>
+    (async () => {
+      try {
+      console.log('[INIT] 开始初始化...');
+      const canvas = document.getElementById('pet-canvas');
+      canvas.width = 180;
+      canvas.height = 180;
+      console.log('[INIT] Canvas 创建完成');
+
+      // 初始化各模块
+      const drawer = new PetDrawer(1.0);
+      console.log('[INIT] PetDrawer 创建完成');
+      const reminder = new Reminder();
+      console.log('[INIT] Reminder 创建完成');
+      const controller = new PetController(canvas, drawer, reminder);
+      console.log('[INIT] PetController 创建完成');
+
+      // 提醒关闭回调
+      reminder.onDismiss = () => {
+        controller.onReminderDismissed();
+      };
+
+      // 初始化控制器
+      console.log('[INIT] 开始 controller.init()...');
+      await controller.init();
+      console.log('[INIT] controller.init() 完成');
+
+      // 监听主进程打开设置（托盘菜单）
+      if (window.electronAPI) {
+        window.electronAPI.onOpenSettings(() => {
+          window.electronAPI.openSettingsWindow();
+        });
+      }
+
+      // 全局快捷键：Ctrl+Shift+S 打开设置
+      document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+          e.preventDefault();
+          if (window.electronAPI) window.electronAPI.openSettingsWindow();
+        }
+      });
+
+      console.log('🐱 七七桌面宠物已就绪！');
+      } catch(e) {
+        console.error('[FATAL] 初始化失败:', e.message, e.stack);
+        document.body.innerHTML = '<div style="color:white;background:red;padding:10px;font-size:12px;">错误: ' + e.message + '</div>';
+      }
+    })();
+  </script>
+</body>
+</html>
