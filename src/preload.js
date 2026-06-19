@@ -27,11 +27,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('move-window', { deltaX, deltaY });
   },
 
-  // 窗口展开/收起（用于设置面板）
-  expandWindow: (expanded) => {
-    ipcRenderer.send('expand-window', expanded);
-  },
-
   // 打开独立设置窗口
   openSettingsWindow: () => {
     ipcRenderer.send('open-settings-window');

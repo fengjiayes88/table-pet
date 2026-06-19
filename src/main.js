@@ -4,6 +4,7 @@ const fs = require('fs');
 
 // ── 设置持久化 ──────────────────────────────────────────
 const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
+const APP_ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.ico');
 
 const DEFAULT_SETTINGS = {
   x: null,
@@ -29,6 +30,19 @@ function saveSettings(settings) {
   try {
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
   } catch (e) { /* ignore */ }
+}
+
+function applyAutoLaunch(openAtLogin) {
+  if (!app.isPackaged) {
+    app.setLoginItemSettings({
+      openAtLogin,
+      path: process.execPath,
+      args: [app.getAppPath()],
+    });
+    return;
+  }
+
+  app.setLoginItemSettings({ openAtLogin });
 }
 
 let settings = loadSettings();
@@ -60,6 +74,7 @@ function createWindow() {
     height: winHeight,
     x: winX,
     y: winY,
+    icon: APP_ICON_PATH,
     frame: false,
     transparent: true,
     alwaysOnTop: settings.alwaysOnTop,
@@ -177,7 +192,7 @@ function updateTrayMenu() {
       checked: settings.autoLaunch,
       click: (menuItem) => {
         settings.autoLaunch = menuItem.checked;
-        app.setLoginItemSettings({ openAtLogin: settings.autoLaunch });
+        applyAutoLaunch(settings.autoLaunch);
         saveSettings(settings);
       },
     },
@@ -223,7 +238,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
       });
     }
     if (newSettings.autoLaunch !== undefined) {
-      app.setLoginItemSettings({ openAtLogin: settings.autoLaunch });
+      applyAutoLaunch(settings.autoLaunch);
     }
     mainWindow.webContents.send('settings-changed', settings);
   }
@@ -278,6 +293,7 @@ function createSettingsWindow() {
     height: winH,
     x: Math.round((sw - winW) / 2),
     y: Math.round((sh - winH) / 2),
+    icon: APP_ICON_PATH,
     frame: true,
     title: '七七 · 设置',
     resizable: false,
@@ -300,7 +316,7 @@ function createSettingsWindow() {
   });
 }
 
-// 打开设置窗口（替换原 expand-window 逻辑）
+// 打开设置窗口
 ipcMain.on('open-settings-window', () => {
   createSettingsWindow();
 });
@@ -326,7 +342,7 @@ ipcMain.on('quit-app', () => {
 // ── 应用生命周期 ────────────────────────────────────────
 app.whenReady().then(() => {
   // 开机自启
-  app.setLoginItemSettings({ openAtLogin: settings.autoLaunch });
+  applyAutoLaunch(settings.autoLaunch);
 
   createWindow();
   createTray();

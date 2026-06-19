@@ -151,7 +151,7 @@ class PetController {
       this.mouseScreenY = e.screenY;
       this._updateLookDirection(e.clientX, e.clientY);
 
-      // 拖拽中：移动窗口
+      // 拖拽中：用 document mousemove 持续移动窗口，避免鼠标移出 canvas 后断触
       if (this.isDragging && this._lastDragScreenX !== null) {
         const dx = e.screenX - this._lastDragScreenX;
         const dy = e.screenY - this._lastDragScreenY;
@@ -173,6 +173,7 @@ class PetController {
     let isMouseDown = false;
 
     this.canvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
       isMouseDown = true;
       mouseDownX = e.screenX;
       mouseDownY = e.screenY;
@@ -194,6 +195,7 @@ class PetController {
     });
 
     this.canvas.addEventListener('mouseup', (e) => {
+      if (e.button !== 0) return;
       isMouseDown = false;
       if (this.isDragging) {
         this._endDrag();
@@ -216,19 +218,22 @@ class PetController {
       if (this.isDragging) this._endDrag();
     });
 
-    this.canvas.addEventListener('mouseleave', () => {
+    this.canvas.addEventListener('pointercancel', () => {
       isMouseDown = false;
       if (this.isDragging) this._endDrag();
       mouseMoved = false;
     });
 
     // 右键打开设置
-    this.canvas.addEventListener('contextmenu', (e) => {
+    const openSettingsByContextMenu = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       if (window.electronAPI && window.electronAPI.openSettingsWindow) {
         window.electronAPI.openSettingsWindow();
       }
-    });
+    };
+    this.canvas.addEventListener('contextmenu', openSettingsByContextMenu);
+    document.addEventListener('contextmenu', openSettingsByContextMenu);
   }
 
   /**
@@ -297,11 +302,6 @@ class PetController {
     this.isReminding = false;
     this._switchState(this.STATES.IDLE);
     this.reminder.start(true);
-  }
-
-  /** 关联设置面板（用于右键打开） */
-  setSettingsPanel(panel) {
-    this._settingsPanel = panel;
   }
 
   // ═══════════════════════════════════════════════════════
