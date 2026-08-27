@@ -120,6 +120,20 @@ async function main() {
     assert.equal(petState.backingWidth, Math.round(petState.cssWidth * petState.dpr));
     assert.deepEqual(petState.loadedStates, ['idle']);
 
+    const idleDrawsPerSecond = await evaluate(petTarget, `(async () => {
+      const drawer = window.__qixiSmoke.drawer;
+      const originalDrawFrame = drawer.drawFrame;
+      let drawCount = 0;
+      drawer.drawFrame = function countedDrawFrame(...args) {
+        drawCount += 1;
+        return originalDrawFrame.apply(this, args);
+      };
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      drawer.drawFrame = originalDrawFrame;
+      return drawCount;
+    })()`);
+    assert.ok(idleDrawsPerSecond >= 2 && idleDrawsPerSecond <= 6);
+
     await evaluate(petTarget, `(() => {
       const canvas = document.getElementById('pet-canvas');
       const rect = canvas.getBoundingClientRect();
@@ -214,7 +228,7 @@ async function main() {
     assert.doesNotMatch(stderr, /\[(FATAL|RENDER|SPRITE|SETTINGS|SHORTCUT)\]/);
     console.log(JSON.stringify({
       ok: true,
-      pet: { ...petState, lazyLoadedStates },
+      pet: { ...petState, idleDrawsPerSecond, lazyLoadedStates },
       settings: settingsState,
       appliedSettings,
       reminder: reminderState,
