@@ -39,17 +39,22 @@ function loadSettings() {
 
 let settings = loadSettings();
 let saveTimer = null;
+let pendingSave = Promise.resolve();
+let quitAfterSave = false;
 
 function saveSettingsNow() {
   clearTimeout(saveTimer);
   saveTimer = null;
-  if (IS_SMOKE_TEST) return;
-  try {
-    fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
-  } catch (error) {
-    console.error('[SETTINGS] 保存失败', error);
-  }
+  const snapshot = JSON.stringify(settings, null, 2);
+  pendingSave = pendingSave
+    .then(async () => {
+      await fs.promises.mkdir(path.dirname(SETTINGS_PATH), { recursive: true });
+      await fs.promises.writeFile(SETTINGS_PATH, snapshot, 'utf8');
+    })
+    .catch((error) => {
+      console.error('[SETTINGS] 保存失败', error);
+    });
+  return pendingSave;
 }
 
 function scheduleSettingsSave(delay = 300) {
@@ -348,11 +353,11 @@ ipcMain.handle('get-settings', (event) => {
   return { ...settings };
 });
 
-ipcMain.handle('save-settings', (event, patch) => {
+ipcMain.handle('save-settings', async (event, patch) => {
   if (!isPetSender(event) && !isSettingsSender(event)) return { ...settings };
   const previous = settings;
   settings = normalizeSettings({ ...settings, ...(patch || {}) }, settings);
-  saveSettingsNow();
+  const savePromise = saveSettingsNow();
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (previous.alwaysOnTop !== settings.alwaysOnTop) {
@@ -377,6 +382,7 @@ ipcMain.handle('save-settings', (event, patch) => {
     mainWindow.webContents.send('settings-changed', settings);
   }
   updateTrayMenu();
+  await savePromise;
   return { ...settings };
 });
 
@@ -402,13 +408,13 @@ ipcMain.handle('move-window', (event, payload = {}) => {
   return getWindowMetrics();
 });
 
-ipcMain.handle('persist-window-position', (event) => {
+ipcMain.handle('persist-window-position', async (event) => {
   if (!isPetSender(event)) return false;
   const metrics = getWindowMetrics();
   if (!metrics) return false;
   settings.x = metrics.x;
   settings.y = metrics.y;
-  saveSettingsNow();
+  await saveSettingsNow();
   return true;
 });
 
@@ -456,9 +462,14 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   isQuitting = true;
   globalShortcut.unregisterAll();
-  saveSettingsNow();
+  if (quitAfterSave) return;
+  event.preventDefault();
+  saveSettingsNow().finally(() => {
+    quitAfterSave = true;
+    app.quit();
+  });
 });
 app.on('activate', () => mainWindow?.showInactive());

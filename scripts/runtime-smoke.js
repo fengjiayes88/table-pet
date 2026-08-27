@@ -1,5 +1,7 @@
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -85,6 +87,9 @@ async function main() {
   child.stderr.on('data', (chunk) => errors.push(String(chunk)));
 
   let petTarget;
+  let report;
+  let shouldVerifyPersistence = false;
+  const smokeSettingsPath = path.join(os.tmpdir(), `qixi-pet-smoke-${child.pid}.json`);
   try {
     const initialTargets = await waitFor(
       'the pet renderer',
@@ -202,6 +207,7 @@ async function main() {
     assert.equal(appliedSettings.settings.reminderInterval, 1);
     assert.equal(appliedSettings.cssWidth, 216);
     assert.equal(appliedSettings.backingWidth, Math.round(216 * appliedSettings.dpr));
+    shouldVerifyPersistence = true;
 
     await evaluate(petTarget, `window.electronAPI.showReminderBubble('自动化运行时检查'); true`);
     const reminderTargets = await waitFor(
@@ -226,13 +232,13 @@ async function main() {
 
     const stderr = errors.join('');
     assert.doesNotMatch(stderr, /\[(FATAL|RENDER|SPRITE|SETTINGS|SHORTCUT)\]/);
-    console.log(JSON.stringify({
+    report = {
       ok: true,
       pet: { ...petState, idleDrawsPerSecond, lazyLoadedStates },
       settings: settingsState,
       appliedSettings,
       reminder: reminderState,
-    }, null, 2));
+    };
   } finally {
     if (petTarget) {
       try {
@@ -247,7 +253,16 @@ async function main() {
       new Promise((resolve) => child.once('exit', resolve)),
       delay(3000).then(() => child.kill()),
     ]);
+    if (shouldVerifyPersistence) {
+      const persistedSettings = JSON.parse(fs.readFileSync(smokeSettingsPath, 'utf8'));
+      assert.equal(persistedSettings.size, 1.2);
+      assert.equal(persistedSettings.opacity, 0.8);
+      assert.equal(persistedSettings.reminderInterval, 1);
+      report.persistedSettings = persistedSettings;
+    }
+    if (fs.existsSync(smokeSettingsPath)) fs.rmSync(smokeSettingsPath);
   }
+  console.log(JSON.stringify(report, null, 2));
 }
 
 main().catch((error) => {
