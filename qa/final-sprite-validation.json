@@ -1,0 +1,78 @@
+{
+  "ok": true,
+  "checkedFiles": [
+    {
+      "state": "idle",
+      "file": "idle@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "walk",
+      "file": "walk@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "walk",
+      "file": "walk2@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "jump",
+      "file": "jump@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "headTilt",
+      "file": "head-tilt@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "pawReach",
+      "file": "paw-reach@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "roll",
+      "file": "roll1@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "roll",
+      "file": "roll2@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "dragged",
+      "file": "dragged@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "reminder",
+      "file": "reminder@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "reminder",
+      "file": "reminder2@4.png",
+      "width": 2048,
+      "height": 512
+    },
+    {
+      "state": "sleep",
+      "file": "sleep@4.png",
+      "width": 2048,
+      "height": 512
+    }
+  ],
+  "errors": []
+}
