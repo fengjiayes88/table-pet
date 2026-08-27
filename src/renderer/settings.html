@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
   <title>七七 · 设置</title>
   <style>
     :root {
@@ -278,80 +279,6 @@
     </div>
   </div>
 
-  <script>
-    (async () => {
-      const $ = (id) => document.getElementById(id);
-      const sizeEl = $('size'), sizeVal = $('size-val');
-      const opEl = $('opacity'), opVal = $('opacity-val');
-      const onTopEl = $('ontop');
-      const remEnEl = $('reminder-enabled');
-      const remIntEl = $('reminder-interval');
-      const intervalGroup = $('interval-group');
-      const autoEl = $('autolaunch');
-
-      // 加载初始设置
-      try {
-        const s = await window.electronAPI.getSettings();
-        if (s.size !== undefined) {
-          sizeEl.value = s.size;
-          sizeVal.textContent = Math.round(s.size * 100) + '%';
-        }
-        if (s.opacity !== undefined) {
-          opEl.value = s.opacity;
-          opVal.textContent = Math.round(s.opacity * 100) + '%';
-        }
-        if (s.alwaysOnTop !== undefined) onTopEl.checked = s.alwaysOnTop;
-        if (s.reminderEnabled !== undefined) {
-          remEnEl.checked = s.reminderEnabled;
-          intervalGroup.style.opacity = s.reminderEnabled ? '1' : '0.5';
-          remIntEl.disabled = !s.reminderEnabled;
-        }
-        if (s.reminderInterval !== undefined) remIntEl.value = s.reminderInterval;
-        if (s.autoLaunch !== undefined) autoEl.checked = s.autoLaunch;
-      } catch (e) { console.error(e); }
-
-      // 应用单项设置
-      async function apply(key, value) {
-        try {
-          await window.electronAPI.saveSettings({ [key]: value });
-        } catch (e) { console.error('保存失败:', e); }
-      }
-
-      sizeEl.addEventListener('input', () => {
-        sizeVal.textContent = Math.round(sizeEl.value * 100) + '%';
-      });
-      sizeEl.addEventListener('change', () => apply('size', parseFloat(sizeEl.value)));
-
-      opEl.addEventListener('input', () => {
-        opVal.textContent = Math.round(opEl.value * 100) + '%';
-      });
-      opEl.addEventListener('change', () => apply('opacity', parseFloat(opEl.value)));
-
-      onTopEl.addEventListener('change', () => apply('alwaysOnTop', onTopEl.checked));
-
-      remEnEl.addEventListener('change', () => {
-        const en = remEnEl.checked;
-        intervalGroup.style.opacity = en ? '1' : '0.5';
-        remIntEl.disabled = !en;
-        apply('reminderEnabled', en);
-      });
-
-      remIntEl.addEventListener('change', () => {
-        let v = parseInt(remIntEl.value, 10);
-        if (isNaN(v) || v < 1) v = 1;
-        if (v > 999) v = 999;
-        remIntEl.value = v;
-        apply('reminderInterval', v);
-      });
-      autoEl.addEventListener('change', () => apply('autoLaunch', autoEl.checked));
-
-      // 退出
-      $('quit-btn').addEventListener('click', () => {
-        if (confirm('确定要退出七七桌面宠物吗？')) {
-          window.electronAPI.quitApp();
-        }
-      });
-    })();
-  </script>
+  <script src="settings.js"></script>
 </body>
 </html>

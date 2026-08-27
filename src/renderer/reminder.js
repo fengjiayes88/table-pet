@@ -1,158 +1,76 @@
 /**
- * 休息提醒模块
- * 管理定时提醒倒计时，到期后触发提醒动画
+ * 休息提醒倒计时。气泡由主进程创建独立透明窗口，避免被宠物窗口裁切。
  */
-
 class Reminder {
   constructor() {
     this.intervalMinutes = 45;
     this.enabled = true;
     this.timerId = null;
     this.startTime = Date.now();
-    this.onTrigger = null;       // 触发提醒回调
-    this.onTick = null;          // 每秒 tick 回调（用于 UI 显示倒计时）
-    this.onDismiss = null;       // 提醒被关闭回调
-
-    // 气泡 UI 相关
+    this.onTrigger = null;
+    this.onTick = null;
+    this.onDismiss = null;
     this.bubbleVisible = false;
-    this.bubbleTimer = null;
-    this.bubbleElement = null;
   }
 
-  /**
-   * 配置提醒参数
-   */
   configure({ enabled, intervalMinutes }) {
-    if (enabled !== undefined) this.enabled = enabled;
-    if (intervalMinutes !== undefined) this.intervalMinutes = intervalMinutes;
-
-    if (this.enabled) {
-      this.start();
-    } else {
-      this.stop();
+    if (enabled !== undefined) this.enabled = !!enabled;
+    if (intervalMinutes !== undefined) {
+      const parsed = Number(intervalMinutes);
+      this.intervalMinutes = Number.isFinite(parsed)
+        ? Math.min(999, Math.max(1, parsed))
+        : 45;
     }
+    this.enabled ? this.start(true) : this.stop();
   }
 
-  /**
-   * 启动提醒计时器
-   */
   start(resetTimer = true) {
     this.stop();
     if (!this.enabled) return;
-
-    if (resetTimer) {
-      this.startTime = Date.now();
-    }
+    if (resetTimer) this.startTime = Date.now();
 
     this.timerId = setInterval(() => {
-      const elapsed = (Date.now() - this.startTime) / 1000 / 60;
+      const elapsedMs = Date.now() - this.startTime;
       const totalMs = this.intervalMinutes * 60 * 1000;
-      const remaining = totalMs - (Date.now() - this.startTime);
-
-      // 每秒通知倒计时
-      if (this.onTick) {
-        this.onTick({
-          elapsedMinutes: Math.floor(elapsed),
-          totalMinutes: this.intervalMinutes,
-          remainingMs: Math.max(0, remaining),
-          remainingMinutes: Math.max(0, Math.ceil(remaining / 60000)),
-        });
-      }
-
-      // 时间到了，触发提醒
-      if (remaining <= 0) {
-        this.triggerReminder();
-      }
+      const remaining = totalMs - elapsedMs;
+      this.onTick?.({
+        elapsedMinutes: Math.floor(elapsedMs / 60000),
+        totalMinutes: this.intervalMinutes,
+        remainingMs: Math.max(0, remaining),
+        remainingMinutes: Math.max(0, Math.ceil(remaining / 60000)),
+      });
+      if (remaining <= 0) this.triggerReminder();
     }, 1000);
   }
 
-  /**
-   * 停止计时器
-   */
   stop() {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-      this.timerId = null;
-    }
+    if (!this.timerId) return;
+    clearInterval(this.timerId);
+    this.timerId = null;
   }
 
-  /**
-   * 重置计时器（手动关闭提醒后重新计时）
-   */
-  reset() {
+  reset(fromBubbleWindow = false) {
     this.startTime = Date.now();
-    this.dismissBubble();
-    if (this.onDismiss) this.onDismiss();
+    this.dismissBubble(!fromBubbleWindow);
+    this.onDismiss?.();
   }
 
-  /**
-   * 触发提醒
-   */
   triggerReminder() {
     this.stop();
-    if (this.onTrigger) {
-      this.onTrigger();
-    }
+    this.onTrigger?.();
   }
 
-  /**
-   * 显示提醒气泡
-   */
-  showBubble(canvasElement, message = '该休息啦～双击我解除提醒吧！') {
+  showBubble(_canvasElement, message = '该休息啦～双击我解除提醒吧！') {
     if (this.bubbleVisible) return;
-
-    // 创建气泡元素
-    this.bubbleElement = document.createElement('div');
-    this.bubbleElement.className = 'reminder-bubble';
-    this.bubbleElement.innerHTML = `
-      <div class="bubble-content">
-        <span class="bubble-icon">&#9889;</span>
-        <span class="bubble-text">${message}</span>
-        <button class="bubble-dismiss" title="知道了">&#10005;</button>
-      </div>
-    `;
-
-    // 定位到宠物上方
-    const canvas = canvasElement;
-    const rect = canvas.getBoundingClientRect();
-    this.bubbleElement.style.left = rect.left + rect.width / 2 + 'px';
-    this.bubbleElement.style.top = rect.top - 60 + 'px';
-
-    document.body.appendChild(this.bubbleElement);
     this.bubbleVisible = true;
-
-    // 关闭按钮
-    this.bubbleElement.querySelector('.bubble-dismiss').addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.reset();
-    });
-
-    // 提醒气泡保持显示，直到用户双击宠物或点击关闭按钮
+    window.electronAPI?.showReminderBubble?.(message);
   }
 
-  /**
-   * 隐藏提醒气泡
-   */
-  dismissBubble() {
-    if (this.bubbleTimer) {
-      clearTimeout(this.bubbleTimer);
-      this.bubbleTimer = null;
-    }
-    if (this.bubbleElement) {
-      this.bubbleElement.classList.add('bubble-fadeout');
-      setTimeout(() => {
-        if (this.bubbleElement) {
-          this.bubbleElement.remove();
-          this.bubbleElement = null;
-        }
-      }, 400);
-    }
+  dismissBubble(notifyWindow = true) {
+    if (notifyWindow) window.electronAPI?.dismissReminderBubble?.(false);
     this.bubbleVisible = false;
   }
 
-  /**
-   * 销毁
-   */
   destroy() {
     this.stop();
     this.dismissBubble();

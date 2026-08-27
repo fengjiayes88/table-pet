@@ -1,44 +1,32 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+function subscribe(channel, callback) {
+  const listener = (_event, payload) => callback(payload);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  // 设置管理
+  isSmokeTest: process.argv.includes('--qixi-smoke-test'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
-  // 窗口控制
-  getWindowPosition: () => ipcRenderer.invoke('get-window-position'),
+  getWindowMetrics: () => ipcRenderer.invoke('get-window-metrics'),
+  moveWindow: (deltaX, deltaY) => ipcRenderer.invoke('move-window', { deltaX, deltaY }),
+  persistWindowPosition: () => ipcRenderer.invoke('persist-window-position'),
   setIgnoreMouseEvents: (ignore, options) => {
     ipcRenderer.send('set-ignore-mouse-events', ignore, options);
   },
 
-  // 监听主进程事件
-  onSettingsChanged: (callback) => {
-    ipcRenderer.on('settings-changed', (event, settings) => callback(settings));
-  },
-  onWindowSizeChanged: (callback) => {
-    ipcRenderer.on('window-size', (event, data) => callback(data));
-  },
-  onOpenSettings: (callback) => {
-    ipcRenderer.on('open-settings', () => callback());
-  },
+  openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
+  quitApp: () => ipcRenderer.send('quit-app'),
 
-  // 窗口拖动
-  moveWindow: (deltaX, deltaY) => {
-    ipcRenderer.send('move-window', { deltaX, deltaY });
-  },
+  showReminderBubble: (message) => ipcRenderer.invoke('show-reminder-bubble', message),
+  dismissReminderBubble: (notifyPet = false) =>
+    ipcRenderer.invoke('dismiss-reminder-bubble', notifyPet),
 
-  // 打开独立设置窗口
-  openSettingsWindow: () => {
-    ipcRenderer.send('open-settings-window');
-  },
-
-  // 退出应用
-  quitApp: () => {
-    ipcRenderer.send('quit-app');
-  },
-
-  // 移除监听
-  removeAllListeners: (channel) => {
-    ipcRenderer.removeAllListeners(channel);
-  },
+  onSettingsChanged: (callback) => subscribe('settings-changed', callback),
+  onWindowSizeChanged: (callback) => subscribe('window-size', callback),
+  onReminderMessage: (callback) => subscribe('reminder-message', callback),
+  onReminderDismissed: (callback) => subscribe('reminder-dismissed', callback),
 });

@@ -1,78 +1,130 @@
 /**
  * 宠物行为控制器
- * 动画状态机、交互处理、渲染循环
+ * 动画状态机、交互处理、窗口移动和节流渲染。
  */
-
 class PetController {
   constructor(canvas, petDrawer, reminder) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: true });
     this.drawer = petDrawer;
     this.reminder = reminder;
 
-    // 状态机
-    this.STATES = {
-      IDLE:     'idle',
-      WALK:     'walk',
-      JUMP:     'jump',
-      HEAD_TILT:'headTilt',
-      PAW_REACH:'pawReach',
-      ROLL:     'roll',
-      DRAGGED:  'dragged',
+    this.STATES = Object.freeze({
+      IDLE: 'idle',
+      WALK: 'walk',
+      JUMP: 'jump',
+      HEAD_TILT: 'headTilt',
+      PAW_REACH: 'pawReach',
+      ROLL: 'roll',
+      DRAGGED: 'dragged',
       REMINDER: 'reminder',
-      SLEEP:    'sleep',
-    };
+      SLEEP: 'sleep',
+    });
 
     this.state = this.STATES.IDLE;
     this.stateStartTime = 0;
-    this.stateDuration = 0;       // 当前状态持续 ms
+    this.stateDuration = Infinity;
     this.frameIndex = 0;
-    this.totalFrames = 4;
+    this.totalFrames = 1;
+    this.frameMs = 200;
+    this.animationLoops = true;
 
-    // 走动相关
-    this.walkDuration = 3000;     // 走动持续 ms
+    this.idleTime = 0;
+    this.nextWalkTime = this._randomWalkDelay();
+    this.sleepAfterMs = 120000;
+
+    this.walkDuration = 3000;
     this._walkStartScreenX = 0;
     this._walkTargetScreenX = 0;
-    this._windowX = 0;            // 自追踪窗口 X 坐标
+    this._windowX = 0;
+    this._windowY = 0;
+    this._workArea = null;
+    this._walkPreparationPending = false;
 
-    // 空闲计时（用于随机走动）
-    this.idleTime = 0;
-    this.nextWalkTime = 8000 + Math.random() * 15000; // 8-23 秒后走动
-
-    // 拖拽
     this.isDragging = false;
     this._lastDragScreenX = null;
     this._lastDragScreenY = null;
+    this._moveRequestPending = false;
+    this._queuedMove = { x: 0, y: 0 };
 
-    // 鼠标位置（用于视线跟随）
     this.mouseScreenX = 0;
     this.mouseScreenY = 0;
+    this.mouseClientX = 0;
+    this.mouseClientY = 0;
+    this._mouseInsideWindow = false;
+    this._ignoringMouse = false;
 
-    // 点击反馈动作池
     this.clickActions = [this.STATES.JUMP, this.STATES.HEAD_TILT, this.STATES.PAW_REACH];
-
-    // 提醒中标志
     this.isReminding = false;
 
-    // 动画帧 ID
     this.animFrameId = null;
+    this.loopTimerId = null;
+    this.destroyed = false;
+    this._lastRenderedState = null;
+    this._lastRenderedFrame = -1;
+    this._needsRender = true;
 
-    // 设置
     this.settings = {};
-    this.canvasW = canvas.width;
-    this.canvasH = canvas.height;
+    this.canvasW = 180;
+    this.canvasH = 180;
+    this.dpr = 1;
+    this._eventDisposers = [];
   }
 
-  /**
-   * 初始化控制器
-   */
   async init() {
-    // 加载设置
+    this.settings = await this._loadSettings();
+    this.reminder.configure({
+      enabled: this.settings.reminderEnabled,
+      intervalMinutes: this.settings.reminderInterval,
+    });
+    this.reminder.onTrigger = () => this._onReminderTrigger();
+
+    this._resizeCanvas();
+    this._bindEvents();
+    await this.drawer.ready;
+    await this._refreshWindowMetrics();
+
+    this._switchState(this.STATES.IDLE, true);
+    this._renderLoop();
+
+    if (window.electronAPI) {
+      window.electronAPI.onSettingsChanged((nextSettings) => {
+        const previous = this.settings;
+        this.settings = nextSettings;
+
+        const reminderChanged =
+          previous.reminderEnabled !== nextSettings.reminderEnabled ||
+          previous.reminderInterval !== nextSettings.reminderInterval;
+        if (reminderChanged) {
+          this.reminder.configure({
+            enabled: nextSettings.reminderEnabled,
+            intervalMinutes: nextSettings.reminderInterval,
+          });
+          if (!nextSettings.reminderEnabled && this.isReminding) this.reminder.reset();
+        }
+
+        this.drawer.scale = nextSettings.size;
+        this._resizeCanvas();
+      });
+
+      window.electronAPI.onWindowSizeChanged((data) => {
+        this._setCanvasSize(data.width, data.height);
+        this.drawer.scale = data.scale;
+      });
+
+      window.electronAPI.onReminderDismissed(() => {
+        if (this.isReminding) this.reminder.reset(true);
+      });
+    }
+  }
+
+  async _loadSettings() {
     try {
-      this.settings = await window.electronAPI.getSettings();
-    } catch (e) {
-      this.settings = {
-        size: 1.0,
+      return await window.electronAPI.getSettings();
+    } catch (error) {
+      console.error('[SETTINGS] 读取失败，使用默认值', error);
+      return {
+        size: 1,
         opacity: 0.95,
         alwaysOnTop: true,
         autoLaunch: true,
@@ -80,91 +132,57 @@ class PetController {
         reminderInterval: 45,
       };
     }
-
-    // 配置提醒
-    this.reminder.configure({
-      enabled: this.settings.reminderEnabled,
-      intervalMinutes: this.settings.reminderInterval,
-    });
-    this.reminder.onTrigger = () => this._onReminderTrigger();
-    this.reminder.start();
-
-    // 设置画布大小
-    this._resizeCanvas();
-
-    // 绑定事件
-    this._bindEvents();
-
-    // 初始化窗口位置追踪
-    try {
-      const [x] = await window.electronAPI.getWindowPosition();
-      this._windowX = x;
-    } catch (e) { /* ignore */ }
-
-    // 开始渲染循环
-    this.stateStartTime = performance.now();
-    this._renderLoop();
-
-    // 监听主进程设置变更
-    if (window.electronAPI) {
-      window.electronAPI.onSettingsChanged((settings) => {
-        this.settings = settings;
-        this.reminder.configure({
-          enabled: settings.reminderEnabled,
-          intervalMinutes: settings.reminderInterval,
-        });
-        this.drawer.scale = settings.size;
-        this._resizeCanvas();
-      });
-
-      window.electronAPI.onWindowSizeChanged((data) => {
-        this.canvas.width = data.width;
-        this.canvas.height = data.height;
-        this.canvasW = data.width;
-        this.canvasH = data.height;
-        this.drawer.scale = data.scale;
-      });
-    }
   }
 
-  /**
-   * 调整画布尺寸
-   */
   _resizeCanvas() {
-    const size = this.settings.size || 1;
-    // 画布内容区域（给宠物留空间）
-    const base = 180 * size;
-    this.canvas.width = base;
-    this.canvas.height = base;
-    this.canvasW = base;
-    this.canvasH = base;
+    const size = Number.isFinite(this.settings.size) ? this.settings.size : 1;
+    const cssSize = Math.round(180 * size);
+    this._setCanvasSize(cssSize, cssSize);
     this.drawer.scale = size;
   }
 
-  /**
-   * 绑定交互事件
-   */
-  _bindEvents() {
-    // ── 鼠标追踪（视线跟随） ──
-    document.addEventListener('mousemove', (e) => {
-      this.mouseScreenX = e.screenX;
-      this.mouseScreenY = e.screenY;
-      this._updateLookDirection(e.clientX, e.clientY);
+  _setCanvasSize(cssWidth, cssHeight) {
+    this.dpr = Math.max(1, window.devicePixelRatio || 1);
+    this.canvas.style.width = `${cssWidth}px`;
+    this.canvas.style.height = `${cssHeight}px`;
+    this.canvas.width = Math.round(cssWidth * this.dpr);
+    this.canvas.height = Math.round(cssHeight * this.dpr);
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.canvasW = cssWidth;
+    this.canvasH = cssHeight;
+    this._needsRender = true;
+  }
 
-      // 拖拽中：用 document mousemove 持续移动窗口，避免鼠标移出 canvas 后断触
+  _listen(target, type, listener, options) {
+    target.addEventListener(type, listener, options);
+    this._eventDisposers.push(() => target.removeEventListener(type, listener, options));
+  }
+
+  _bindEvents() {
+    this._listen(document, 'mousemove', (event) => {
+      this.mouseScreenX = event.screenX;
+      this.mouseScreenY = event.screenY;
+      this.mouseClientX = event.clientX;
+      this.mouseClientY = event.clientY;
+      this._mouseInsideWindow = true;
+      if (this.state === this.STATES.SLEEP) this._switchState(this.STATES.IDLE);
+      this._updateLookDirection(event.clientX, event.clientY);
+      this._updatePointerPassthrough();
+
       if (this.isDragging && this._lastDragScreenX !== null) {
-        const dx = e.screenX - this._lastDragScreenX;
-        const dy = e.screenY - this._lastDragScreenY;
-        this._lastDragScreenX = e.screenX;
-        this._lastDragScreenY = e.screenY;
-        if (window.electronAPI) {
-          window.electronAPI.moveWindow(dx, dy);
-          this._windowX += dx;
-        }
+        const deltaX = event.screenX - this._lastDragScreenX;
+        const deltaY = event.screenY - this._lastDragScreenY;
+        this._lastDragScreenX = event.screenX;
+        this._lastDragScreenY = event.screenY;
+        this._queueWindowMove(deltaX, deltaY);
       }
     });
 
-    // ── 点击交互 ──
+    this._listen(document, 'mouseleave', () => {
+      this._mouseInsideWindow = false;
+      if (!this.isDragging) this._setMouseIgnored(true);
+    });
+
     let clickCount = 0;
     let clickTimer = null;
     let mouseMoved = false;
@@ -172,38 +190,40 @@ class PetController {
     let mouseDownY = 0;
     let isMouseDown = false;
 
-    this.canvas.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
+    this._listen(this.canvas, 'mousedown', (event) => {
+      if (event.button !== 0 || !this._isOpaqueAt(event.clientX, event.clientY)) return;
       isMouseDown = true;
-      mouseDownX = e.screenX;
-      mouseDownY = e.screenY;
-      this._lastDragScreenX = e.screenX;
-      this._lastDragScreenY = e.screenY;
+      mouseDownX = event.screenX;
+      mouseDownY = event.screenY;
+      this._lastDragScreenX = event.screenX;
+      this._lastDragScreenY = event.screenY;
       mouseMoved = false;
     });
 
-    this.canvas.addEventListener('mousemove', (e) => {
+    this._listen(this.canvas, 'mousemove', (event) => {
       if (!this.isDragging && !mouseMoved && isMouseDown) {
-        const dx = e.screenX - mouseDownX;
-        const dy = e.screenY - mouseDownY;
-        // 移动超过 8px 才触发拖拽
-        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        const deltaX = event.screenX - mouseDownX;
+        const deltaY = event.screenY - mouseDownY;
+        if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
           mouseMoved = true;
           this._startDrag();
         }
       }
     });
 
-    this.canvas.addEventListener('mouseup', (e) => {
-      if (e.button !== 0) return;
+    this._listen(this.canvas, 'mouseup', (event) => {
+      if (event.button !== 0) return;
       isMouseDown = false;
       if (this.isDragging) {
         this._endDrag();
       } else if (!mouseMoved) {
-        clickCount++;
+        clickCount += 1;
         if (clickCount === 1) {
-          clickTimer = setTimeout(() => { clickCount = 0; this._onSingleClick(); }, 300);
-        } else if (clickCount === 2) {
+          clickTimer = setTimeout(() => {
+            clickCount = 0;
+            this._onSingleClick();
+          }, 300);
+        } else {
           clearTimeout(clickTimer);
           clickCount = 0;
           this._onDoubleClick();
@@ -212,63 +232,83 @@ class PetController {
       mouseMoved = false;
     });
 
-    // document 级别 mouseup 处理窗口外松手
-    document.addEventListener('mouseup', () => {
+    this._listen(document, 'mouseup', () => {
       isMouseDown = false;
       if (this.isDragging) this._endDrag();
     });
 
-    this.canvas.addEventListener('pointercancel', () => {
+    this._listen(this.canvas, 'pointercancel', () => {
       isMouseDown = false;
-      if (this.isDragging) this._endDrag();
       mouseMoved = false;
+      if (this.isDragging) this._endDrag();
     });
 
-    // 右键打开设置
-    const openSettingsByContextMenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (window.electronAPI && window.electronAPI.openSettingsWindow) {
-        window.electronAPI.openSettingsWindow();
-      }
+    const openSettings = (event) => {
+      if (!this._isOpaqueAt(event.clientX, event.clientY)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      window.electronAPI?.openSettingsWindow();
     };
-    this.canvas.addEventListener('contextmenu', openSettingsByContextMenu);
-    document.addEventListener('contextmenu', openSettingsByContextMenu);
+    this._listen(this.canvas, 'contextmenu', openSettings);
   }
 
-  /**
-   * 更新视线方向
-   */
   _updateLookDirection(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = clientX - cx;
-    const dy = clientY - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const deltaX = clientX - (rect.left + rect.width / 2);
+    const deltaY = clientY - (rect.top + rect.height / 2);
+    this.drawer.lookX = Math.max(-1, Math.min(1, deltaX / (rect.width * 0.8)));
+    this.drawer.lookY = Math.max(-1, Math.min(1, deltaY / (rect.height * 0.8)));
 
-    this.drawer.lookX = Math.max(-1, Math.min(1, dx / (rect.width * 0.8)));
-    this.drawer.lookY = Math.max(-1, Math.min(1, dy / (rect.height * 0.8)));
-
-    // 跟随鼠标左右翻转身体朝向
     if (!this.isDragging && this.state === this.STATES.IDLE) {
-      if (dx < -30) this.drawer.direction = -1;
-      else if (dx > 30) this.drawer.direction = 1;
+      const previousDirection = this.drawer.direction;
+      if (deltaX < -30) this.drawer.direction = -1;
+      if (deltaX > 30) this.drawer.direction = 1;
+      if (previousDirection !== this.drawer.direction) this._needsRender = true;
+    }
+
+    if (!this.drawer.getAnimationInfo(this.state).usesSprite) this._needsRender = true;
+  }
+
+  _isOpaqueAt(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    if (clientX < rect.left || clientX >= rect.right || clientY < rect.top || clientY >= rect.bottom) {
+      return false;
+    }
+    try {
+      const x = Math.min(this.canvas.width - 1, Math.max(0, Math.floor((clientX - rect.left) * this.dpr)));
+      const y = Math.min(this.canvas.height - 1, Math.max(0, Math.floor((clientY - rect.top) * this.dpr)));
+      return this.ctx.getImageData(x, y, 1, 1).data[3] > 24;
+    } catch (error) {
+      return true;
     }
   }
 
-  // ── 交互事件处理 ──
+  _updatePointerPassthrough() {
+    if (this.isDragging) {
+      this._setMouseIgnored(false);
+      return;
+    }
+    const overPet = this._mouseInsideWindow && this._isOpaqueAt(this.mouseClientX, this.mouseClientY);
+    this._setMouseIgnored(!overPet);
+  }
+
+  _setMouseIgnored(ignore) {
+    if (this._ignoringMouse === ignore) return;
+    this._ignoringMouse = ignore;
+    window.electronAPI?.setIgnoreMouseEvents(ignore, ignore ? { forward: true } : undefined);
+  }
 
   _onSingleClick() {
-    // 提醒状态下单击不响应（仅双击可解除）
-    if (this.state === this.STATES.REMINDER) return;
+    if (this.state === this.STATES.SLEEP) {
+      this._switchState(this.STATES.IDLE);
+      return;
+    }
     if (this.state !== this.STATES.IDLE) return;
     const action = this.clickActions[Math.floor(Math.random() * this.clickActions.length)];
     this._switchState(action);
   }
 
   _onDoubleClick() {
-    // 提醒状态：双击解除提醒
     if (this.state === this.STATES.REMINDER) {
       this.reminder.reset();
       return;
@@ -278,17 +318,18 @@ class PetController {
 
   _startDrag() {
     this.isDragging = true;
+    this._setMouseIgnored(false);
     this._switchState(this.STATES.DRAGGED);
   }
 
-  _endDrag() {
+  async _endDrag() {
     this.isDragging = false;
     this._lastDragScreenX = null;
     this._lastDragScreenY = null;
+    await window.electronAPI?.persistWindowPosition?.();
     this._switchState(this.STATES.IDLE);
+    this._updatePointerPassthrough();
   }
-
-  // ── 提醒 ──
 
   _onReminderTrigger() {
     if (this.isReminding) return;
@@ -297,193 +338,182 @@ class PetController {
     this.reminder.showBubble(this.canvas);
   }
 
-  /** 提醒关闭后的处理 */
   onReminderDismissed() {
     this.isReminding = false;
     this._switchState(this.STATES.IDLE);
     this.reminder.start(true);
   }
 
-  // ═══════════════════════════════════════════════════════
-  //  状态机
-  // ═══════════════════════════════════════════════════════
+  _switchState(newState, force = false) {
+    if (!force && this.state === newState && newState !== this.STATES.WALK) return;
 
-  /**
-   * 切换动画状态
-   */
-  _switchState(newState) {
-    if (this.state === newState && newState !== this.STATES.WALK) return;
-
+    this.drawer.ensureState(newState).then(() => {
+      if (!this.destroyed && this.state === newState) this._needsRender = true;
+    });
     this.state = newState;
     this.stateStartTime = performance.now();
     this.frameIndex = 0;
 
-    switch (newState) {
-      case this.STATES.IDLE:
-        this.stateDuration = Infinity; // 循环
-        this.totalFrames = 6;
-        this.idleTime = 0;
-        this.nextWalkTime = 8000 + Math.random() * 15000;
-        break;
+    const animation = this.drawer.getAnimationInfo(newState);
+    this.totalFrames = animation.totalFrames;
+    this.frameMs = animation.frameMs;
+    this.animationLoops = animation.loop;
+    this.stateDuration = window.AnimationLogic.durationMs(animation);
 
-      case this.STATES.WALK:
-        this.stateDuration = this.walkDuration;
-        this.totalFrames = 8;
-        this._initWalk();
-        break;
+    if (newState === this.STATES.IDLE) {
+      this.idleTime = 0;
+      this.nextWalkTime = this._randomWalkDelay();
+    } else if (newState === this.STATES.WALK) {
+      this.stateDuration = this.walkDuration;
+    }
 
-      case this.STATES.JUMP:
-        this.stateDuration = 600;
-        this.totalFrames = 8;
-        break;
+    this._lastRenderedState = null;
+    this._lastRenderedFrame = -1;
+    this._needsRender = true;
+  }
 
-      case this.STATES.HEAD_TILT:
-        this.stateDuration = 1200;
-        this.totalFrames = 12;
-        break;
+  _randomWalkDelay() {
+    return 8000 + Math.random() * 15000;
+  }
 
-      case this.STATES.PAW_REACH:
-        this.stateDuration = 1000;
-        this.totalFrames = 10;
-        break;
+  async _prepareWalk() {
+    if (this._walkPreparationPending || this.state !== this.STATES.IDLE) return;
+    this._walkPreparationPending = true;
+    try {
+      await this._refreshWindowMetrics();
+      if (this.state !== this.STATES.IDLE) return;
 
-      case this.STATES.ROLL:
-        this.stateDuration = 1500;
-        this.totalFrames = 16;
-        break;
-
-      case this.STATES.DRAGGED:
-        this.stateDuration = Infinity; // 循环，直到拖拽结束
-        this.totalFrames = 4;
-        break;
-
-      case this.STATES.REMINDER:
-        this.stateDuration = Infinity; // 循环，直到关闭
-        this.totalFrames = 8;
-        break;
-
-      case this.STATES.SLEEP:
-        this.stateDuration = Infinity;
-        this.totalFrames = 6;
-        break;
+      const workArea = this._workArea || { x: 0, width: window.screen.availWidth };
+      const windowWidth = this.canvasW;
+      const margin = 20;
+      const minX = workArea.x + margin;
+      const maxX = workArea.x + workArea.width - windowWidth - margin;
+      this._walkStartScreenX = this._windowX;
+      this._walkTargetScreenX = minX + Math.random() * Math.max(1, maxX - minX);
+      this.walkDuration = 2000 + Math.random() * 4000;
+      this.drawer.direction = this._walkTargetScreenX >= this._walkStartScreenX ? 1 : -1;
+      this._switchState(this.STATES.WALK);
+    } finally {
+      this._walkPreparationPending = false;
     }
   }
 
-  /** 初始化走动参数（同步，使用自追踪的 _windowX） */
-  _initWalk() {
-    const screenW = window.screen?.width || 1920;
-    const winW = this.canvas.width;
-    const margin = 20;
-
-    // 目标 = 窗口左上角 x，钳制在屏幕可见范围内
-    const minX = margin;
-    const maxX = screenW - winW - margin;
-    const targetX = minX + Math.random() * Math.max(1, maxX - minX);
-
-    // _walkStartScreenX / _walkTargetScreenX 表示窗口左上角 x（统一坐标系）
-    this._walkStartScreenX = this._windowX;
-    this._walkTargetScreenX = targetX;
-
-    // 安全检查
-    if (isNaN(this._walkStartScreenX) || isNaN(this._walkTargetScreenX)) {
-      console.warn('[WALK] 位置计算异常，取消走动');
-      this._switchState(this.STATES.IDLE);
-      return;
+  async _refreshWindowMetrics() {
+    try {
+      const metrics = await window.electronAPI?.getWindowMetrics?.();
+      if (!metrics) return;
+      this._windowX = metrics.x;
+      this._windowY = metrics.y;
+      this._workArea = metrics.workArea;
+    } catch (error) {
+      console.error('[WINDOW] 读取位置失败', error);
     }
-
-    console.log('[WALK] 走动:', { windowX: this._windowX, start: this._walkStartScreenX, target: this._walkTargetScreenX, screenW });
-
-    this.drawer.direction = this._walkTargetScreenX > this._walkStartScreenX ? 1 : -1;
-
-    this.walkDuration = 2000 + Math.random() * 4000;
-    this.stateDuration = this.walkDuration;
   }
 
-  // ═══════════════════════════════════════════════════════
-  //  渲染循环
-  // ═══════════════════════════════════════════════════════
+  _queueWindowMove(deltaX, deltaY) {
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+    this._queuedMove.x += deltaX;
+    this._queuedMove.y += deltaY;
+    if (this._moveRequestPending) return;
+
+    this._moveRequestPending = true;
+    const flush = async () => {
+      const move = this._queuedMove;
+      this._queuedMove = { x: 0, y: 0 };
+      try {
+        const metrics = await window.electronAPI?.moveWindow?.(move.x, move.y);
+        if (metrics) {
+          this._windowX = metrics.x;
+          this._windowY = metrics.y;
+          this._workArea = metrics.workArea;
+        }
+      } finally {
+        this._moveRequestPending = false;
+        if (this._queuedMove.x || this._queuedMove.y) this._queueWindowMove(0, 0);
+      }
+    };
+    flush();
+  }
+
+  _scheduleNextFrame(delayMs) {
+    if (this.destroyed) return;
+    clearTimeout(this.loopTimerId);
+    this.loopTimerId = setTimeout(() => {
+      this.animFrameId = requestAnimationFrame(() => this._renderLoop());
+    }, delayMs);
+  }
 
   _renderLoop() {
+    if (this.destroyed) return;
+
     try {
-    const now = performance.now();
-    const elapsed = now - this.stateStartTime;
+      const now = performance.now();
+      const elapsed = now - this.stateStartTime;
+      const nextFrame = window.AnimationLogic.frameAtElapsed({
+        totalFrames: this.totalFrames,
+        frameMs: this.frameMs,
+        loop: this.animationLoops,
+      }, elapsed);
 
-    // 计算当前帧
-    if (this.state === this.STATES.IDLE) {
-      // 空闲：循环动画（300ms / 帧，节奏舒缓）
-      this.frameIndex = Math.floor((elapsed / 300) % this.totalFrames);
-
-      // 闲置过久触发随机走动
-      this.idleTime = elapsed;
-      if (this.idleTime > this.nextWalkTime) {
-        this._switchState(this.STATES.WALK);
-        this.animFrameId = requestAnimationFrame(() => this._renderLoop());
-        return;
+      if (nextFrame !== this.frameIndex) {
+        this.frameIndex = nextFrame;
+        this._needsRender = true;
       }
-    } else if (this.state === this.STATES.REMINDER) {
-      // 提醒：循环播放精灵图（150ms / 帧），直到双击解除
-      this.frameIndex = Math.floor((elapsed / 150) % this.totalFrames);
-    } else if (this.state === this.STATES.DRAGGED) {
-      // 拖拽：循环播放
-      this.frameIndex = Math.floor((elapsed / 120) % this.totalFrames);
-    } else if (this.state === this.STATES.SLEEP) {
-      // 睡觉：循环播放
-      this.frameIndex = Math.floor((elapsed / 200) % this.totalFrames);
-    } else {
-      // 有限状态
-      const progress = Math.min(elapsed / this.stateDuration, 1);
-      this.frameIndex = Math.min(
-        Math.floor(progress * this.totalFrames),
-        this.totalFrames - 1
-      );
 
-      // 走动时的窗口位移
-      if (this.state === this.STATES.WALK) {
-        const t = Math.min(elapsed / this.stateDuration, 1);
-        const desiredX = this._walkStartScreenX + (this._walkTargetScreenX - this._walkStartScreenX) * t;
+      if (this.state === this.STATES.IDLE) {
+        this.idleTime = elapsed;
+        if (this.idleTime >= this.sleepAfterMs) {
+          this._switchState(this.STATES.SLEEP);
+        } else if (this.idleTime >= this.nextWalkTime) {
+          this._prepareWalk();
+        }
+      } else if (this.state === this.STATES.WALK) {
+        const progress = Math.min(elapsed / this.stateDuration, 1);
+        const desiredX = this._walkStartScreenX +
+          (this._walkTargetScreenX - this._walkStartScreenX) * progress;
         const deltaX = Math.round(desiredX - this._windowX);
-        // 安全检查：防止异常大位移；限频：累计 ≥ 2px 才移动一次
-        if (window.electronAPI && Math.abs(deltaX) >= 2 && Math.abs(deltaX) < 500) {
-          window.electronAPI.moveWindow(deltaX, 0);
-          this._windowX += deltaX;
-        }
-      }
-
-      // 状态结束
-      if (progress >= 1) {
-        if (this.state === this.STATES.REMINDER) {
-          // 提醒保持循环
-          this.stateStartTime = now;
-          this.frameIndex = 0;
-        } else if (this.state === this.STATES.DRAGGED) {
-          // 拖拽保持
-          this.stateStartTime = now;
-          this.frameIndex = 0;
-        } else {
+        if (Math.abs(deltaX) >= 1 && Math.abs(deltaX) < 500) this._queueWindowMove(deltaX, 0);
+        if (progress >= 1) {
+          window.electronAPI?.persistWindowPosition?.();
           this._switchState(this.STATES.IDLE);
-          this.animFrameId = requestAnimationFrame(() => this._renderLoop());
-          return;
         }
+      } else if (Number.isFinite(this.stateDuration) && elapsed >= this.stateDuration) {
+        this._switchState(this.STATES.IDLE);
       }
-    }
 
-    // 绘制
-    this.drawer.drawFrame(this.ctx, this.canvasW, this.canvasH, this.state, this.frameIndex, this.totalFrames);
+      if (
+        this._needsRender ||
+        this._lastRenderedState !== this.state ||
+        this._lastRenderedFrame !== this.frameIndex
+      ) {
+        this.drawer.drawFrame(
+          this.ctx,
+          this.canvasW,
+          this.canvasH,
+          this.state,
+          this.frameIndex,
+          this.totalFrames,
+        );
+        this._lastRenderedState = this.state;
+        this._lastRenderedFrame = this.frameIndex;
+        this._needsRender = false;
+        this._updatePointerPassthrough();
+      }
 
-    this.animFrameId = requestAnimationFrame(() => this._renderLoop());
-    } catch(e) {
-      console.error('[RENDER] 渲染循环崩溃:', e.message, e.stack);
-      // 尝试恢复
-      this._switchState(this.STATES.IDLE);
-      this.animFrameId = requestAnimationFrame(() => this._renderLoop());
+      const delay = this.state === this.STATES.WALK ? 16 : Math.min(100, this.frameMs);
+      this._scheduleNextFrame(delay);
+    } catch (error) {
+      console.error('[RENDER] 渲染循环异常', error);
+      this._switchState(this.STATES.IDLE, true);
+      this._scheduleNextFrame(100);
     }
   }
 
-  /** 销毁 */
   destroy() {
-    if (this.animFrameId) {
-      cancelAnimationFrame(this.animFrameId);
-    }
+    this.destroyed = true;
+    clearTimeout(this.loopTimerId);
+    if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
+    for (const dispose of this._eventDisposers.splice(0)) dispose();
     this.reminder.destroy();
   }
 }

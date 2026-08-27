@@ -1,35 +1,60 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  ipcMain,
+  nativeImage,
+  screen,
+  globalShortcut,
+} = require('electron');
 const path = require('path');
 const fs = require('fs');
+const {
+  DEFAULT_SETTINGS,
+  clamp,
+  finiteNumber,
+  normalizeSettings,
+  clampToWorkArea,
+} = require('./shared/app-logic');
 
-// ── 设置持久化 ──────────────────────────────────────────
-const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
+const IS_SMOKE_TEST = process.env.QIXI_SMOKE_TEST === '1';
+const SETTINGS_PATH = IS_SMOKE_TEST
+  ? path.join(app.getPath('temp'), `qixi-pet-smoke-${process.pid}.json`)
+  : path.join(app.getPath('userData'), 'settings.json');
 const APP_ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.ico');
-
-const DEFAULT_SETTINGS = {
-  x: null,
-  y: null,
-  size: 1.0,           // 0.5 - 2.0
-  opacity: 0.95,        // 0.1 - 1.0
-  alwaysOnTop: true,
-  autoLaunch: true,
-  reminderEnabled: true,
-  reminderInterval: 45  // 分钟
-};
+const PET_BASE_SIZE = 180;
 
 function loadSettings() {
   try {
     if (fs.existsSync(SETTINGS_PATH)) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) };
+      const parsed = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
+      return normalizeSettings(parsed);
     }
-  } catch (e) { /* ignore */ }
+  } catch (error) {
+    console.error('[SETTINGS] 配置损坏，已恢复默认值', error);
+  }
   return { ...DEFAULT_SETTINGS };
 }
 
-function saveSettings(settings) {
+let settings = loadSettings();
+let saveTimer = null;
+
+function saveSettingsNow() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (IS_SMOKE_TEST) return;
   try {
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
-  } catch (e) { /* ignore */ }
+    fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+  } catch (error) {
+    console.error('[SETTINGS] 保存失败', error);
+  }
+}
+
+function scheduleSettingsSave(delay = 300) {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveSettingsNow, delay);
 }
 
 function applyAutoLaunch(openAtLogin) {
@@ -41,39 +66,79 @@ function applyAutoLaunch(openAtLogin) {
     });
     return;
   }
-
   app.setLoginItemSettings({ openAtLogin });
 }
 
-let settings = loadSettings();
-
-// ── 窗口引用 ────────────────────────────────────────────
 let mainWindow = null;
 let settingsWindow = null;
+let reminderWindow = null;
 let tray = null;
 let isQuitting = false;
 
-// ── 创建宠物窗口 ────────────────────────────────────────
-function createWindow() {
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+function petSize() {
+  return Math.round(PET_BASE_SIZE * settings.size);
+}
 
-  const petSize = Math.round(180 * settings.size);
-  const winWidth = petSize;
-  const winHeight = petSize;
+function displayForPoint(x, y) {
+  return screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) });
+}
 
-  // 确定初始位置：上次位置 或 屏幕右下角
-  let winX = settings.x;
-  let winY = settings.y;
-  if (winX == null || winY == null) {
-    winX = screenWidth - winWidth - 40;
-    winY = screenHeight - winHeight - 60;
+function clampPosition(x, y, width, height) {
+  const display = displayForPoint(x + width / 2, y + height / 2);
+  const workArea = display.workArea;
+  const position = clampToWorkArea(x, y, width, height, workArea);
+  return {
+    ...position,
+    display,
+  };
+}
+
+function initialPetBounds() {
+  const size = petSize();
+  if (settings.x != null && settings.y != null) {
+    const position = clampPosition(settings.x, settings.y, size, size);
+    return { x: position.x, y: position.y, width: size, height: size };
   }
 
+  const workArea = screen.getPrimaryDisplay().workArea;
+  return {
+    x: workArea.x + workArea.width - size - 40,
+    y: workArea.y + workArea.height - size - 60,
+    width: size,
+    height: size,
+  };
+}
+
+function getWindowMetrics() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  const bounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  return {
+    ...bounds,
+    displayId: display.id,
+    workArea: { ...display.workArea },
+  };
+}
+
+function updateReminderBubblePosition() {
+  if (!reminderWindow || reminderWindow.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return;
+  const petBounds = mainWindow.getBounds();
+  const bubbleBounds = reminderWindow.getBounds();
+  const display = screen.getDisplayMatching(petBounds);
+  const workArea = display.workArea;
+
+  let x = Math.round(petBounds.x + petBounds.width / 2 - bubbleBounds.width / 2);
+  let y = petBounds.y - bubbleBounds.height - 8;
+  x = clamp(x, workArea.x, workArea.x + workArea.width - bubbleBounds.width);
+  if (y < workArea.y) y = petBounds.y + petBounds.height + 8;
+  y = clamp(y, workArea.y, workArea.y + workArea.height - bubbleBounds.height);
+  reminderWindow.setPosition(Math.round(x), Math.round(y), false);
+}
+
+function createWindow() {
+  const bounds = initialPetBounds();
   mainWindow = new BrowserWindow({
-    width: winWidth,
-    height: winHeight,
-    x: winX,
-    y: winY,
+    ...bounds,
     icon: APP_ICON_PATH,
     frame: false,
     transparent: true,
@@ -81,119 +146,104 @@ function createWindow() {
     skipTaskbar: true,
     resizable: false,
     hasShadow: false,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      additionalArguments: IS_SMOKE_TEST ? ['--qixi-smoke-test'] : [],
     },
   });
 
   mainWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
   mainWindow.setVisibleOnAllWorkspaces(true);
   mainWindow.setOpacity(settings.opacity);
+  mainWindow.setMinimumSize(bounds.width, bounds.height);
+  mainWindow.setMaximumSize(bounds.width, bounds.height);
   mainWindow.setIgnoreMouseEvents(false);
-  // 锁定窗口尺寸，防止移动时被系统/DWM 拉伸
-  mainWindow.setMinimumSize(winWidth, winHeight);
-  mainWindow.setMaximumSize(winWidth, winHeight);
-  mainWindow.setResizable(false);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
-  // 调试：取消注释下行可打开 DevTools
-  // mainWindow.webContents.openDevTools({ mode: 'detach' });
-
-  // 防御：如检测到尺寸变化，立即恢复（始终使用最新设置算出的目标尺寸）
   mainWindow.on('resize', () => {
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow._expanded || isQuitting) return;
-    try {
-      const targetSize = Math.round(180 * settings.size);
-      const [w, h] = mainWindow.getSize();
-      if (w !== targetSize || h !== targetSize) {
-        const [x, y] = mainWindow.getPosition();
-        mainWindow.setBounds({ x, y, width: targetSize, height: targetSize });
-      }
-    } catch (e) {
-      // 退出过程中可能失败，忽略
+    if (!mainWindow || mainWindow.isDestroyed() || isQuitting) return;
+    const size = petSize();
+    const [width, height] = mainWindow.getSize();
+    if (width !== size || height !== size) {
+      const [x, y] = mainWindow.getPosition();
+      mainWindow.setBounds({ x, y, width: size, height: size });
     }
   });
 
-  // 保存位置
   mainWindow.on('moved', () => {
-    if (mainWindow && !mainWindow.isDestroyed() && !isQuitting) {
-      try {
-        const [x, y] = mainWindow.getPosition();
-        settings.x = x;
-        settings.y = y;
-        saveSettings(settings);
-      } catch (e) {
-        // 退出过程中忽略
-      }
-    }
+    if (!mainWindow || mainWindow.isDestroyed() || isQuitting) return;
+    const [x, y] = mainWindow.getPosition();
+    settings.x = x;
+    settings.y = y;
+    scheduleSettingsSave();
+    updateReminderBubblePosition();
   });
 
-  mainWindow.on('close', (e) => {
-    if (!isQuitting) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    mainWindow.hide();
+    reminderWindow?.hide();
+    updateTrayMenu();
   });
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
+  mainWindow.on('show', () => {
+    if (reminderWindow && !reminderWindow.isDestroyed()) reminderWindow.showInactive();
+    updateTrayMenu();
   });
+  mainWindow.on('hide', updateTrayMenu);
+  mainWindow.on('closed', () => { mainWindow = null; });
 
-  // 发送初始设置给渲染进程
   mainWindow.webContents.on('did-finish-load', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.webContents.send('settings-changed', settings);
-    mainWindow.webContents.send('window-size', { width: winWidth, height: winHeight, scale: settings.size });
+    mainWindow.webContents.send('window-size', {
+      width: bounds.width,
+      height: bounds.height,
+      scale: settings.size,
+    });
+    mainWindow.showInactive();
   });
 }
 
-// ── 系统托盘 ────────────────────────────────────────────
 function createTray() {
-  const trayIconPath = path.join(__dirname, '..', 'assets', 'tray-icon.png');
-  const trayIcon = nativeImage.createFromPath(trayIconPath);
-
+  const trayIcon = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray-icon.png'));
   tray = new Tray(trayIcon);
   tray.setToolTip('七七桌面宠物');
-
   updateTrayMenu();
-
   tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-      updateTrayMenu();
-    }
+    if (!mainWindow) return;
+    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.showInactive();
   });
 }
 
 function updateTrayMenu() {
-  const visible = mainWindow && mainWindow.isVisible();
-  const contextMenu = Menu.buildFromTemplate([
+  if (!tray) return;
+  const visible = !!mainWindow?.isVisible();
+  tray.setContextMenu(Menu.buildFromTemplate([
     {
       label: visible ? '隐藏宠物' : '显示宠物',
       click: () => {
-        if (mainWindow) {
-          visible ? mainWindow.hide() : mainWindow.show();
-          updateTrayMenu();
-        }
+        if (!mainWindow) return;
+        visible ? mainWindow.hide() : mainWindow.showInactive();
       },
     },
     { type: 'separator' },
-    {
-      label: '设置',
-      click: () => {
-        createSettingsWindow();
-      },
-    },
+    { label: '设置', click: createSettingsWindow },
     { type: 'separator' },
     {
       label: '开机自启',
       type: 'checkbox',
       checked: settings.autoLaunch,
       click: (menuItem) => {
-        settings.autoLaunch = menuItem.checked;
+        settings = normalizeSettings({ ...settings, autoLaunch: menuItem.checked }, settings);
         applyAutoLaunch(settings.autoLaunch);
-        saveSettings(settings);
+        saveSettingsNow();
+        mainWindow?.webContents.send('settings-changed', settings);
       },
     },
     { type: 'separator' },
@@ -204,160 +254,211 @@ function updateTrayMenu() {
         app.quit();
       },
     },
-  ]);
-  tray.setContextMenu(contextMenu);
+  ]));
 }
 
-// ── IPC 处理 ────────────────────────────────────────────
-ipcMain.handle('get-settings', () => settings);
-
-ipcMain.handle('save-settings', (event, newSettings) => {
-  settings = { ...settings, ...newSettings };
-  saveSettings(settings);
-
-  // 立即应用设置
-  if (mainWindow) {
-    if (newSettings.alwaysOnTop !== undefined) {
-      mainWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
-    }
-    if (newSettings.opacity !== undefined) {
-      mainWindow.setOpacity(settings.opacity);
-    }
-    if (newSettings.size !== undefined) {
-      const petSize = Math.round(180 * settings.size);
-      // 重新解锁、设置尺寸、再锁定，避免冲突
-      mainWindow.setMinimumSize(1, 1);
-      mainWindow.setMaximumSize(0, 0);
-      mainWindow.setSize(petSize, petSize);
-      mainWindow.setMinimumSize(petSize, petSize);
-      mainWindow.setMaximumSize(petSize, petSize);
-      mainWindow.webContents.send('window-size', {
-        width: petSize,
-        height: petSize,
-        scale: settings.size,
-      });
-    }
-    if (newSettings.autoLaunch !== undefined) {
-      applyAutoLaunch(settings.autoLaunch);
-    }
-    mainWindow.webContents.send('settings-changed', settings);
-  }
-
-  updateTrayMenu();
-  return settings;
-});
-
-ipcMain.handle('get-window-position', () => {
-  if (mainWindow) {
-    return mainWindow.getPosition();
-  }
-  return [0, 0];
-});
-
-ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
-  if (mainWindow) {
-    mainWindow.setIgnoreMouseEvents(ignore, options);
-  }
-});
-
-ipcMain.on('move-window', (event, { deltaX, deltaY }) => {
-  if (mainWindow) {
-    const [x, y] = mainWindow.getPosition();
-    // 使用初始固定尺寸，避免读取已被系统污染的当前尺寸
-    const petSize = Math.round(180 * settings.size);
-    // 屏幕工作区，限制窗口不超出可见范围
-    const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-    let nx = x + deltaX;
-    let ny = y + deltaY;
-    nx = Math.max(0, Math.min(nx, sw - petSize));
-    ny = Math.max(0, Math.min(ny, sh - petSize));
-    // 用 setBounds 同时锁定尺寸，防止 Windows 下高频移动导致窗口被拉伸
-    mainWindow.setBounds({ x: nx, y: ny, width: petSize, height: petSize });
-  }
-});
-
-// 创建独立的设置窗口
 function createSettingsWindow() {
-  if (settingsWindow) {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.show();
     settingsWindow.focus();
     return;
   }
 
-  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  const winW = 360;
-  const winH = 520;
-
+  const display = mainWindow
+    ? screen.getDisplayMatching(mainWindow.getBounds())
+    : screen.getPrimaryDisplay();
+  const { workArea } = display;
+  const width = 360;
+  const height = 520;
   settingsWindow = new BrowserWindow({
-    width: winW,
-    height: winH,
-    x: Math.round((sw - winW) / 2),
-    y: Math.round((sh - winH) / 2),
+    width,
+    height,
+    x: Math.round(workArea.x + (workArea.width - width) / 2),
+    y: Math.round(workArea.y + (workArea.height - height) / 2),
     icon: APP_ICON_PATH,
-    frame: true,
     title: '七七 · 设置',
     resizable: false,
     minimizable: false,
     maximizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
-
   settingsWindow.setMenuBarVisibility(false);
   settingsWindow.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
-
-  settingsWindow.on('closed', () => {
-    settingsWindow = null;
-  });
+  settingsWindow.on('closed', () => { settingsWindow = null; });
 }
 
-// 打开设置窗口
-ipcMain.on('open-settings-window', () => {
-  createSettingsWindow();
+function showReminderBubble(message) {
+  if (reminderWindow && !reminderWindow.isDestroyed()) {
+    reminderWindow.webContents.send('reminder-message', message);
+    updateReminderBubblePosition();
+    reminderWindow.showInactive();
+    return;
+  }
+
+  reminderWindow = new BrowserWindow({
+    width: 320,
+    height: 64,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: settings.alwaysOnTop,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  reminderWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+  reminderWindow.loadFile(path.join(__dirname, 'renderer', 'reminder-bubble.html'));
+  reminderWindow.webContents.on('did-finish-load', () => {
+    reminderWindow?.webContents.send('reminder-message', message);
+    updateReminderBubblePosition();
+    if (mainWindow?.isVisible()) reminderWindow?.showInactive();
+  });
+  reminderWindow.on('closed', () => { reminderWindow = null; });
+}
+
+function dismissReminderBubble(notifyPet = true) {
+  if (reminderWindow && !reminderWindow.isDestroyed()) reminderWindow.close();
+  reminderWindow = null;
+  if (notifyPet && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('reminder-dismissed');
+  }
+}
+
+function isPetSender(event) {
+  return !!mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents;
+}
+
+function isSettingsSender(event) {
+  return !!settingsWindow && !settingsWindow.isDestroyed() && event.sender === settingsWindow.webContents;
+}
+
+ipcMain.handle('get-settings', (event) => {
+  if (!isPetSender(event) && !isSettingsSender(event)) return null;
+  return { ...settings };
 });
 
-ipcMain.on('quit-app', () => {
-  isQuitting = true;
-  // 先关闭设置窗口（如果存在），避免渲染进程崩溃影响主进程
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.destroy();
-    settingsWindow = null;
-  }
+ipcMain.handle('save-settings', (event, patch) => {
+  if (!isPetSender(event) && !isSettingsSender(event)) return { ...settings };
+  const previous = settings;
+  settings = normalizeSettings({ ...settings, ...(patch || {}) }, settings);
+  saveSettingsNow();
+
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.destroy();
-    mainWindow = null;
+    if (previous.alwaysOnTop !== settings.alwaysOnTop) {
+      mainWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+      reminderWindow?.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+    }
+    if (previous.opacity !== settings.opacity) mainWindow.setOpacity(settings.opacity);
+    if (previous.autoLaunch !== settings.autoLaunch) applyAutoLaunch(settings.autoLaunch);
+
+    if (previous.size !== settings.size) {
+      const size = petSize();
+      const current = mainWindow.getBounds();
+      const clamped = clampPosition(current.x, current.y, size, size);
+      mainWindow.setMinimumSize(1, 1);
+      mainWindow.setMaximumSize(10000, 10000);
+      mainWindow.setBounds({ x: clamped.x, y: clamped.y, width: size, height: size });
+      mainWindow.setMinimumSize(size, size);
+      mainWindow.setMaximumSize(size, size);
+      mainWindow.webContents.send('window-size', { width: size, height: size, scale: settings.size });
+      updateReminderBubblePosition();
+    }
+    mainWindow.webContents.send('settings-changed', settings);
   }
-  if (tray) {
-    tray.destroy();
-    tray = null;
-  }
+  updateTrayMenu();
+  return { ...settings };
+});
+
+ipcMain.handle('get-window-metrics', (event) => isPetSender(event) ? getWindowMetrics() : null);
+
+ipcMain.handle('move-window', (event, payload = {}) => {
+  if (!isPetSender(event) || !mainWindow || mainWindow.isDestroyed()) return null;
+  const deltaX = clamp(finiteNumber(payload.deltaX, 0), -500, 500);
+  const deltaY = clamp(finiteNumber(payload.deltaY, 0), -500, 500);
+  const bounds = mainWindow.getBounds();
+  const position = clampPosition(
+    bounds.x + deltaX,
+    bounds.y + deltaY,
+    bounds.width,
+    bounds.height,
+  );
+  mainWindow.setBounds({
+    x: position.x,
+    y: position.y,
+    width: bounds.width,
+    height: bounds.height,
+  });
+  return getWindowMetrics();
+});
+
+ipcMain.handle('persist-window-position', (event) => {
+  if (!isPetSender(event)) return false;
+  const metrics = getWindowMetrics();
+  if (!metrics) return false;
+  settings.x = metrics.x;
+  settings.y = metrics.y;
+  saveSettingsNow();
+  return true;
+});
+
+ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
+  if (!isPetSender(event) || !mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setIgnoreMouseEvents(!!ignore, ignore ? { forward: !!options?.forward } : undefined);
+});
+
+ipcMain.on('open-settings-window', (event) => {
+  if (isPetSender(event)) createSettingsWindow();
+});
+
+ipcMain.handle('show-reminder-bubble', (event, message) => {
+  if (!isPetSender(event)) return false;
+  showReminderBubble(typeof message === 'string' ? message.slice(0, 120) : '该休息啦～');
+  return true;
+});
+
+ipcMain.handle('dismiss-reminder-bubble', (event, notifyPet = false) => {
+  const fromPet = isPetSender(event);
+  const fromBubble = !!reminderWindow && !reminderWindow.isDestroyed() &&
+    event.sender === reminderWindow.webContents;
+  if (!fromPet && !fromBubble) return false;
+  dismissReminderBubble(fromBubble || !!notifyPet);
+  return true;
+});
+
+ipcMain.on('quit-app', (event) => {
+  if (!isPetSender(event) && !isSettingsSender(event)) return;
+  isQuitting = true;
   app.quit();
 });
 
-// ── 应用生命周期 ────────────────────────────────────────
 app.whenReady().then(() => {
-  // 开机自启
-  applyAutoLaunch(settings.autoLaunch);
-
+  if (!IS_SMOKE_TEST) applyAutoLaunch(settings.autoLaunch);
   createWindow();
-  createTray();
-});
-
-app.on('window-all-closed', () => {
-  // 不退出，保持在托盘
-});
-
-app.on('before-quit', () => {
-  isQuitting = true;
-});
-
-app.on('activate', () => {
-  if (mainWindow) {
-    mainWindow.show();
+  if (!IS_SMOKE_TEST) createTray();
+  const shortcutRegistered = globalShortcut.register(
+    'CommandOrControl+Shift+S',
+    createSettingsWindow,
+  );
+  if (!shortcutRegistered) {
+    console.warn('[SHORTCUT] Ctrl+Shift+S is already in use; use the tray menu instead.');
   }
 });
+
+app.on('window-all-closed', () => {});
+app.on('before-quit', () => {
+  isQuitting = true;
+  globalShortcut.unregisterAll();
+  saveSettingsNow();
+});
+app.on('activate', () => mainWindow?.showInactive());

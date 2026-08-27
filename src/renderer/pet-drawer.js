@@ -11,95 +11,81 @@ class PetDrawer {
     this.lookY = 0;   // 视线方向 (-1 上, 0 中, 1 下)
     this.direction = 1; // 1 = 朝右, -1 = 朝左
 
-    // 精灵图相关
-    this.sprites = {};       // { state: { images: [{img, frames}], totalFrames, loaded } }
-    this._loadSprites();
+    // 精灵图相关。ready 由控制器等待，避免启动时先显示占位猫再突然切图。
+    this.sprites = {};
+    this.ready = this._loadSprites();
   }
 
   // ── 精灵图加载 ──
-  _loadSprites() {
-    const states = [
-      'idle', 'walk', 'jump', 'headTilt', 'pawReach',
-      'roll', 'dragged', 'reminder', 'sleep'
-    ];
-    const fileNameMap = {
-      idle: 'idle',
-      walk: 'walk',
-      jump: 'jump',
-      headTilt: 'head-tilt',
-      pawReach: 'paw-reach',
-      roll: 'roll',
-      dragged: 'dragged',
-      reminder: 'reminder',
-      sleep: 'sleep',
-    };
-
-    states.forEach((state) => {
-      const baseName = fileNameMap[state];
-      // 候选文件名：
-      // - 单文件：base.png 或 base@N.png（N=帧数）
-      // - 多文件：base1.png ... base9.png 或 base1@N.png ... base9@N.png
-      // 帧数解析优先级：文件名 @N > 自动推算（图宽 ÷ 图高，假设每帧正方形）
-      const candidates = [];
-      candidates.push({ name: `${baseName}.png`, order: 0 });
-      for (let n = 1; n <= 9; n++) {
-        candidates.push({ name: `${baseName}@${n}.png`, order: 0, declaredFrames: n });
-      }
-      for (let i = 1; i <= 9; i++) {
-        candidates.push({ name: `${baseName}${i}.png`, order: i });
-        for (let n = 1; n <= 9; n++) {
-          candidates.push({ name: `${baseName}${i}@${n}.png`, order: i, declaredFrames: n });
-        }
-      }
-
-      const entry = { images: [], totalFrames: 0, loaded: false };
-      this.sprites[state] = entry;
-
-      let pendingCount = candidates.length;
-      const tryFinalize = () => {
-        pendingCount--;
-        if (pendingCount === 0) {
-          // 同 order 只保留一个：优先有 declaredFrames 的
-          const byOrder = new Map();
-          for (const im of entry.images) {
-            const exist = byOrder.get(im.order);
-            if (!exist || (im.declared && !exist.declared)) {
-              byOrder.set(im.order, im);
-            }
-          }
-          entry.images = [...byOrder.values()].sort((a, b) => a.order - b.order);
-          entry.totalFrames = entry.images.reduce((sum, im) => sum + im.frames, 0);
-          if (entry.images.length > 0) {
-            entry.loaded = true;
-            const desc = entry.images.map((i) => `${i.fileName}(${i.frames}帧)`).join(', ');
-            console.log(`[SPRITE] 加载: ${state} -> ${desc} (共 ${entry.totalFrames} 帧)`);
-          }
-        }
+  async _loadSprites() {
+    const manifest = window.PET_SPRITES || {};
+    for (const [state, config] of Object.entries(manifest)) {
+      this.sprites[state] = {
+        images: [],
+        totalFrames: config.fallbackFrames || 1,
+        loaded: false,
+        loadPromise: null,
+        frameMs: config.frameMs,
+        loop: config.loop,
       };
+    }
+    await this.ensureState('idle');
+  }
 
-      candidates.forEach((c) => {
-        const img = new Image();
-        img.src = `../../assets/sprites/${c.name}`;
-        img.onload = () => {
-          let frames;
-          if (c.declaredFrames) {
-            frames = c.declaredFrames;
-          } else {
-            // 未声明帧数时，默认按 4 帧处理
-            frames = 4;
+  ensureState(state) {
+    const config = (window.PET_SPRITES || {})[state];
+    const entry = this.sprites[state];
+    if (!config || !entry) return Promise.resolve(false);
+    if (entry.loaded) return Promise.resolve(true);
+    if (entry.loadPromise) return entry.loadPromise;
+
+    entry.loadPromise = (async () => {
+      for (const file of config.files || []) {
+        try {
+          const img = await this._loadImage(`../../assets/sprites/${file.name}`);
+          const frameWidth = img.naturalWidth / file.frames;
+          if (!Number.isInteger(frameWidth) || frameWidth <= 0) {
+            throw new Error(`宽度 ${img.naturalWidth} 不能均分为 ${file.frames} 帧`);
           }
-          entry.images.push({
-            img,
-            frames,
-            order: c.order,
-            fileName: c.name,
-            declared: !!c.declaredFrames,
-          });
-          tryFinalize();
-        };
-        img.onerror = () => tryFinalize();
-      });
+          entry.images.push({ img, frames: file.frames, fileName: file.name });
+        } catch (error) {
+          console.error(`[SPRITE] ${state} 加载失败: ${file.name}`, error);
+        }
+      }
+
+      if (entry.images.length > 0) {
+        entry.totalFrames = entry.images.reduce((sum, image) => sum + image.frames, 0);
+        entry.loaded = true;
+      }
+      return entry.loaded;
+    })();
+    return entry.loadPromise;
+  }
+
+  _loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`无法读取 ${src}`));
+      img.src = src;
     });
+  }
+
+  getAnimationInfo(state) {
+    const entry = this.sprites[state];
+    const config = (window.PET_SPRITES || {})[state] || {};
+    return {
+      totalFrames: Math.max(1, entry?.totalFrames || config.fallbackFrames || 1),
+      frameMs: Math.max(16, entry?.frameMs || config.frameMs || 200),
+      loop: entry?.loop ?? config.loop ?? true,
+      usesSprite: !!entry?.loaded,
+    };
+  }
+
+  getLoadedStates() {
+    return Object.entries(this.sprites)
+      .filter(([, entry]) => entry.loaded)
+      .map(([state]) => state);
   }
 
   // ── 颜色配置 ──
