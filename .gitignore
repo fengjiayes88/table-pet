@@ -1,5 +1,7 @@
 node_modules/
 dist/
+tmp/
+qa/baseline-*.json
 *.log
 .DS_Store
 Thumbs.db

@@ -8,11 +8,17 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win",
-    "build:dir": "electron-builder --win --dir"
+    "build:dir": "electron-builder --win --dir",
+    "test": "node --test",
+    "smoke": "node scripts/runtime-smoke.js",
+    "validate:sprites": "node scripts/validate-sprites.js",
+    "check:syntax": "node --check src/main.js && node --check src/preload.js && node --check src/shared/app-logic.js && node --check src/renderer/sprite-manifest.js && node --check src/renderer/animation-logic.js && node --check src/renderer/pet-drawer.js && node --check src/renderer/pet-controller.js && node --check src/renderer/reminder.js && node --check src/renderer/app.js && node --check src/renderer/settings.js && node --check src/renderer/reminder-bubble.js && node --check scripts/runtime-smoke.js",
+    "check": "npm run check:syntax && npm test && npm run validate:sprites"
   },
   "dependencies": {},
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "43.4.1",
+    "electron-builder": "26.15.3"
   },
   "build": {
     "appId": "com.qixi.pet",
@@ -22,7 +28,9 @@
     },
     "files": [
       "src/**/*",
-      "assets/**/*"
+      "assets/icon.ico",
+      "assets/tray-icon.png",
+      "assets/sprites/**/*"
     ],
     "win": {
       "target": "nsis",
