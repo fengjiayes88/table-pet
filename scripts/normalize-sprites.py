@@ -7,6 +7,7 @@ RGB normalization. It does not invent or duplicate animation poses.
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -116,8 +117,19 @@ def normalize_state(state: str, spec: StateSpec) -> list[Image.Image]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--states",
+        nargs="+",
+        choices=tuple(SPECS),
+        default=tuple(SPECS),
+        help="Only normalize the selected animation states.",
+    )
+    args = parser.parse_args()
+
     canonical = None
-    for state, spec in SPECS.items():
+    for state in args.states:
+        spec = SPECS[state]
         frames = normalize_state(state, spec)
         if state == "idle":
             canonical = frames[0]

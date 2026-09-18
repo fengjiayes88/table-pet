@@ -64,6 +64,29 @@ def composite(frame: Image.Image, size: int) -> Image.Image:
     return base
 
 
+def render_consistency_preview(rendered: dict[str, list[Image.Image]]) -> None:
+    selections = (
+        ("idle / baseline", rendered["idle"][0]),
+        ("walk / contact A", rendered["walk"][0]),
+        ("walk / contact B", rendered["walk"][4]),
+        ("roll / crouch", rendered["roll"][0]),
+        ("roll / shoulder", rendered["roll"][3]),
+        ("roll / recover", rendered["roll"][7]),
+    )
+    cell_width = 236
+    cell_height = 258
+    preview = Image.new("RGB", (cell_width * 3, cell_height * 2), "#252932")
+    draw = ImageDraw.Draw(preview)
+    for index, (label, frame) in enumerate(selections):
+        column = index % 3
+        row = index // 3
+        x = column * cell_width
+        y = row * cell_height
+        draw.text((x + 9, y + 8), label, fill="white")
+        preview.paste(composite(frame, 220), (x + 8, y + 30))
+    preview.save(QA / "consistency-comparison.png", optimize=True)
+
+
 def main() -> None:
     QA.mkdir(exist_ok=True)
     PREVIEWS.mkdir(parents=True, exist_ok=True)
@@ -72,9 +95,11 @@ def main() -> None:
     max_frames = max(sum(count for _, count in spec) for spec in STATES.values())
     sheet = Image.new("RGB", (label_width + max_frames * cell, len(STATES) * cell), "#252932")
     draw = ImageDraw.Draw(sheet)
+    rendered: dict[str, list[Image.Image]] = {}
 
     for row, (state, spec) in enumerate(STATES.items()):
         frames = frames_for(spec)
+        rendered[state] = frames
         draw.text((12, row * cell + 14), state, fill="white")
         draw.text((12, row * cell + 38), f"{len(frames)} frames", fill="#aab1bd")
         previews = []
@@ -95,6 +120,7 @@ def main() -> None:
         )
 
     sheet.save(QA / "contact-sheet.png", optimize=True)
+    render_consistency_preview(rendered)
     print(QA / "contact-sheet.png")
 
 

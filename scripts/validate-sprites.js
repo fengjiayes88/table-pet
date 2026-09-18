@@ -154,6 +154,7 @@ function validate() {
   const root = path.resolve(__dirname, '..');
   const results = [];
   const errors = [];
+  const stateMedianCoverage = {};
 
   for (const [state, config] of Object.entries(manifest)) {
     const stateFrames = [];
@@ -215,9 +216,29 @@ function validate() {
         }
       }
     }
+
+    if (stateFrames.length > 0) {
+      const sortedCoverages = stateFrames.map((frame) => frame.coverage).sort((a, b) => a - b);
+      const middle = Math.floor(sortedCoverages.length / 2);
+      stateMedianCoverage[state] = sortedCoverages.length % 2
+        ? sortedCoverages[middle]
+        : (sortedCoverages[middle - 1] + sortedCoverages[middle]) / 2;
+    }
   }
 
-  return { ok: errors.length === 0, checkedFiles: results, errors };
+  const idleCoverage = stateMedianCoverage.idle;
+  if (idleCoverage) {
+    for (const state of ['walk', 'roll', 'dragged']) {
+      const coverage = stateMedianCoverage[state];
+      if (!coverage) continue;
+      const ratio = coverage / idleCoverage;
+      if (ratio < 0.78 || ratio > 1.22) {
+        errors.push(`${state}: 主体视觉尺寸与静待基准不一致 (${ratio.toFixed(2)}x)`);
+      }
+    }
+  }
+
+  return { ok: errors.length === 0, checkedFiles: results, stateMedianCoverage, errors };
 }
 
 const report = validate();

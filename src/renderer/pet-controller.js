@@ -29,8 +29,11 @@ class PetController {
     this.frameMs = 200;
     this.animationLoops = true;
 
+    const now = performance.now();
     this.idleTime = 0;
-    this.nextWalkTime = this._randomWalkDelay();
+    this.lastUserActivityTime = now;
+    this.nextWalkTime = now + this._randomWalkDelay();
+    this.nextJumpTime = now + this._randomJumpDelay();
     this.sleepAfterMs = 120000;
 
     this.walkDuration = 3000;
@@ -63,6 +66,7 @@ class PetController {
     this._lastRenderedState = null;
     this._lastRenderedFrame = -1;
     this._needsRender = true;
+    this._stateRevision = 0;
 
     this.settings = {};
     this.canvasW = 180;
@@ -82,6 +86,8 @@ class PetController {
     this._resizeCanvas();
     this._bindEvents();
     await this.drawer.ready;
+    // 提醒可能在应用长时间失焦后触发，提前加载避免首次提醒停在占位帧。
+    await this.drawer.ensureState(this.STATES.REMINDER);
     await this._refreshWindowMetrics();
 
     this._switchState(this.STATES.IDLE, true);
@@ -160,6 +166,7 @@ class PetController {
 
   _bindEvents() {
     this._listen(document, 'mousemove', (event) => {
+      this._markUserActivity();
       this.mouseScreenX = event.screenX;
       this.mouseScreenY = event.screenY;
       this.mouseClientX = event.clientX;
@@ -192,6 +199,7 @@ class PetController {
 
     this._listen(this.canvas, 'mousedown', (event) => {
       if (event.button !== 0 || !this._isOpaqueAt(event.clientX, event.clientY)) return;
+      this._markUserActivity();
       isMouseDown = true;
       mouseDownX = event.screenX;
       mouseDownY = event.screenY;
@@ -299,6 +307,7 @@ class PetController {
   }
 
   _onSingleClick() {
+    this._markUserActivity();
     if (this.state === this.STATES.SLEEP) {
       this._switchState(this.STATES.IDLE);
       return;
@@ -309,6 +318,7 @@ class PetController {
   }
 
   _onDoubleClick() {
+    this._markUserActivity();
     if (this.state === this.STATES.REMINDER) {
       this.reminder.reset();
       return;
@@ -317,6 +327,7 @@ class PetController {
   }
 
   _startDrag() {
+    this._markUserActivity();
     this.isDragging = true;
     this._setMouseIgnored(false);
     this._switchState(this.STATES.DRAGGED);
@@ -327,7 +338,7 @@ class PetController {
     this._lastDragScreenX = null;
     this._lastDragScreenY = null;
     await window.electronAPI?.persistWindowPosition?.();
-    this._switchState(this.STATES.IDLE);
+    this._switchState(this.isReminding ? this.STATES.REMINDER : this.STATES.IDLE, true);
     this._updatePointerPassthrough();
   }
 
@@ -339,6 +350,7 @@ class PetController {
   }
 
   onReminderDismissed() {
+    this._markUserActivity();
     this.isReminding = false;
     this._switchState(this.STATES.IDLE);
     this.reminder.start(true);
@@ -347,33 +359,75 @@ class PetController {
   _switchState(newState, force = false) {
     if (!force && this.state === newState && newState !== this.STATES.WALK) return;
 
-    this.drawer.ensureState(newState).then(() => {
-      if (!this.destroyed && this.state === newState) this._needsRender = true;
-    });
     this.state = newState;
     this.stateStartTime = performance.now();
     this.frameIndex = 0;
+    const revision = ++this._stateRevision;
 
     const animation = this.drawer.getAnimationInfo(newState);
-    this.totalFrames = animation.totalFrames;
-    this.frameMs = animation.frameMs;
-    this.animationLoops = animation.loop;
-    this.stateDuration = window.AnimationLogic.durationMs(animation);
+    this._applyAnimationInfo(newState, animation);
 
-    if (newState === this.STATES.IDLE) {
-      this.idleTime = 0;
-      this.nextWalkTime = this._randomWalkDelay();
-    } else if (newState === this.STATES.WALK) {
-      this.stateDuration = this.walkDuration;
-    }
+    this.drawer.ensureState(newState).then((loaded) => {
+      if (!loaded || this.destroyed || this.state !== newState || this._stateRevision !== revision) return;
+
+      const loadedAnimation = this.drawer.getAnimationInfo(newState);
+      const metadataChanged =
+        loadedAnimation.totalFrames !== this.totalFrames ||
+        loadedAnimation.frameMs !== this.frameMs ||
+        loadedAnimation.loop !== this.animationLoops;
+
+      this._applyAnimationInfo(newState, loadedAnimation);
+      if (metadataChanged) {
+        // Lazy states initially expose one fallback frame. Start the real strip
+        // from frame zero once loaded so the first action is never truncated or frozen.
+        this.stateStartTime = performance.now();
+        this.frameIndex = 0;
+        this._lastRenderedState = null;
+        this._lastRenderedFrame = -1;
+      }
+      this._needsRender = true;
+    }).catch((error) => {
+      console.error(`[SPRITE] ${newState} 状态准备失败`, error);
+    });
 
     this._lastRenderedState = null;
     this._lastRenderedFrame = -1;
     this._needsRender = true;
   }
 
+  _applyAnimationInfo(state, animation) {
+    this.totalFrames = animation.totalFrames;
+    this.frameMs = animation.frameMs;
+    this.animationLoops = animation.loop;
+    this.stateDuration = window.AnimationLogic.durationMs(animation);
+
+    if (state === this.STATES.IDLE) {
+      this.idleTime = 0;
+    } else if (state === this.STATES.WALK) {
+      this.stateDuration = this.walkDuration;
+    }
+  }
+
+  _markUserActivity(now = performance.now()) {
+    this.lastUserActivityTime = now;
+    this.idleTime = 0;
+    this.nextWalkTime = now + this._randomWalkDelay();
+    this.nextJumpTime = now + this._randomJumpDelay();
+  }
+
   _randomWalkDelay() {
     return 8000 + Math.random() * 15000;
+  }
+
+  _randomJumpDelay() {
+    return 12000 + Math.random() * 18000;
+  }
+
+  _nextIdleEvent(now) {
+    if (now - this.lastUserActivityTime >= this.sleepAfterMs) return this.STATES.SLEEP;
+    if (now >= this.nextJumpTime) return this.STATES.JUMP;
+    if (now >= this.nextWalkTime) return this.STATES.WALK;
+    return null;
   }
 
   async _prepareWalk() {
@@ -461,10 +515,15 @@ class PetController {
       }
 
       if (this.state === this.STATES.IDLE) {
-        this.idleTime = elapsed;
-        if (this.idleTime >= this.sleepAfterMs) {
+        this.idleTime = Math.max(0, now - this.lastUserActivityTime);
+        const idleEvent = this._nextIdleEvent(now);
+        if (idleEvent === this.STATES.SLEEP) {
           this._switchState(this.STATES.SLEEP);
-        } else if (this.idleTime >= this.nextWalkTime) {
+        } else if (idleEvent === this.STATES.JUMP) {
+          this.nextJumpTime = now + this._randomJumpDelay();
+          this._switchState(this.STATES.JUMP);
+        } else if (idleEvent === this.STATES.WALK) {
+          this.nextWalkTime = now + this._randomWalkDelay();
           this._prepareWalk();
         }
       } else if (this.state === this.STATES.WALK) {
@@ -504,7 +563,7 @@ class PetController {
       this._scheduleNextFrame(delay);
     } catch (error) {
       console.error('[RENDER] 渲染循环异常', error);
-      this._switchState(this.STATES.IDLE, true);
+      this._switchState(this.isReminding ? this.STATES.REMINDER : this.STATES.IDLE, true);
       this._scheduleNextFrame(100);
     }
   }

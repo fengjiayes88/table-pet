@@ -40,6 +40,7 @@ class PetDrawer {
     if (entry.loadPromise) return entry.loadPromise;
 
     entry.loadPromise = (async () => {
+      entry.images = [];
       for (const file of config.files || []) {
         try {
           const img = await this._loadImage(`../../assets/sprites/${file.name}`);
@@ -58,7 +59,14 @@ class PetDrawer {
         entry.loaded = true;
       }
       return entry.loaded;
-    })();
+    })().then((loaded) => {
+      // 资源的偶发读取失败不应让该状态永远停在单帧占位图。
+      if (!loaded) entry.loadPromise = null;
+      return loaded;
+    }).catch((error) => {
+      entry.loadPromise = null;
+      throw error;
+    });
     return entry.loadPromise;
   }
 
@@ -121,6 +129,12 @@ class PetDrawer {
 
     // 优先尝试用精灵图渲染
     if (this._drawSprite(ctx, canvasW, canvasH, state, frameIndex, totalFrames)) {
+      return;
+    }
+
+    // 互动精灵图首次按需加载时，继续显示七七的待机帧。
+    // 不要在这段很短的加载窗口里闪出内置的通用占位猫。
+    if (state !== 'idle' && this._drawSprite(ctx, canvasW, canvasH, 'idle', 0, 1)) {
       return;
     }
 

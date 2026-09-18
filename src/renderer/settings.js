@@ -9,9 +9,21 @@
   const reminderIntervalElement = get('reminder-interval');
   const intervalGroup = get('interval-group');
   const autoLaunchElement = get('autolaunch');
+  const saveStatus = get('save-status');
+  const saveStatusText = get('save-status-text');
+  let statusTimer = null;
+
+  function setSaveStatus(state, text) {
+    clearTimeout(statusTimer);
+    saveStatus.classList.remove('is-ready', 'is-saving', 'is-error');
+    saveStatus.classList.add(`is-${state}`);
+    saveStatusText.textContent = text;
+    if (state === 'ready') return;
+    statusTimer = setTimeout(() => setSaveStatus('ready', '设置已同步'), 1500);
+  }
 
   function updateReminderControls(enabled) {
-    intervalGroup.style.opacity = enabled ? '1' : '0.5';
+    intervalGroup.classList.toggle('is-disabled', !enabled);
     reminderIntervalElement.disabled = !enabled;
   }
 
@@ -28,13 +40,17 @@
     updateReminderControls(settings.reminderEnabled);
   } catch (error) {
     console.error('[SETTINGS] 加载失败', error);
+    setSaveStatus('error', '设置加载失败');
   }
 
   async function apply(key, value) {
+    setSaveStatus('saving', '正在保存…');
     try {
       await window.electronAPI.saveSettings({ [key]: value });
+      setSaveStatus('ready', '设置已同步');
     } catch (error) {
       console.error('[SETTINGS] 保存失败', error);
+      setSaveStatus('error', '保存失败，请重试');
     }
   }
 
@@ -42,24 +58,30 @@
     sizeValue.textContent = `${Math.round(Number(sizeElement.value) * 100)}%`;
   });
   sizeElement.addEventListener('change', () => apply('size', Number(sizeElement.value)));
+
   opacityElement.addEventListener('input', () => {
     opacityValue.textContent = `${Math.round(Number(opacityElement.value) * 100)}%`;
   });
   opacityElement.addEventListener('change', () => apply('opacity', Number(opacityElement.value)));
+
   alwaysOnTopElement.addEventListener('change', () =>
     apply('alwaysOnTop', alwaysOnTopElement.checked));
+
   reminderEnabledElement.addEventListener('change', () => {
     updateReminderControls(reminderEnabledElement.checked);
     apply('reminderEnabled', reminderEnabledElement.checked);
   });
+
   reminderIntervalElement.addEventListener('change', () => {
     const parsed = Number.parseInt(reminderIntervalElement.value, 10);
     const value = Math.min(999, Math.max(1, Number.isFinite(parsed) ? parsed : 45));
     reminderIntervalElement.value = value;
     apply('reminderInterval', value);
   });
+
   autoLaunchElement.addEventListener('change', () =>
     apply('autoLaunch', autoLaunchElement.checked));
+
   get('quit-btn').addEventListener('click', () => {
     if (window.confirm('确定要退出七七桌面宠物吗？')) window.electronAPI.quitApp();
   });

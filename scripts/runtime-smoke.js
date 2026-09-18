@@ -36,19 +36,19 @@ async function listTargets() {
   return response.json();
 }
 
-async function evaluate(target, expression) {
+async function cdpCommand(target, method, params = {}) {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     const timeout = setTimeout(() => {
       socket.close();
-      reject(new Error(`Runtime.evaluate timed out for ${target.title}`));
+      reject(new Error(`${method} timed out for ${target.title}`));
     }, 5000);
 
     socket.addEventListener('open', () => {
       socket.send(JSON.stringify({
         id: 1,
-        method: 'Runtime.evaluate',
-        params: { expression, awaitPromise: true, returnByValue: true },
+        method,
+        params,
       }));
     });
     socket.addEventListener('message', (event) => {
@@ -60,12 +60,7 @@ async function evaluate(target, expression) {
         reject(new Error(message.error.message));
         return;
       }
-      const result = message.result?.result;
-      if (message.result?.exceptionDetails || result?.subtype === 'error') {
-        reject(new Error(result?.description || 'Renderer evaluation failed'));
-        return;
-      }
-      resolve(result?.value);
+      resolve(message.result);
     });
     socket.addEventListener('error', () => {
       clearTimeout(timeout);
@@ -74,10 +69,28 @@ async function evaluate(target, expression) {
   });
 }
 
+async function evaluate(target, expression) {
+  const response = await cdpCommand(target, 'Runtime.evaluate', {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  const result = response?.result;
+  if (response?.exceptionDetails || result?.subtype === 'error') {
+    throw new Error(result?.description || 'Renderer evaluation failed');
+  }
+  return result?.value;
+}
+
 async function main() {
   const output = [];
   const errors = [];
-  const child = spawn(ELECTRON, [`--remote-debugging-port=${PORT}`, '.'], {
+  const smokeProfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qixi-pet-smoke-profile-'));
+  const child = spawn(ELECTRON, [
+    `--remote-debugging-port=${PORT}`,
+    `--user-data-dir=${smokeProfileDir}`,
+    '.',
+  ], {
     cwd: ROOT,
     env: { ...process.env, QIXI_SMOKE_TEST: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -90,6 +103,7 @@ async function main() {
   let report;
   let shouldVerifyPersistence = false;
   const smokeSettingsPath = path.join(os.tmpdir(), `qixi-pet-smoke-${child.pid}.json`);
+  const settingsPreviewPath = path.join(ROOT, 'qa', 'settings-preview.png');
   try {
     const initialTargets = await waitFor(
       'the pet renderer',
@@ -161,6 +175,68 @@ async function main() {
     );
     assert.ok(lazyLoadedStates.some((state) => ['jump', 'headTilt', 'pawReach'].includes(state)));
 
+    const redesignedActions = await evaluate(petTarget, `(async () => {
+      const canvas = document.getElementById('pet-canvas');
+      const ctx = canvas.getContext('2d');
+      const drawer = window.__qixiSmoke.drawer;
+      const results = {};
+      for (const state of ['walk', 'roll']) {
+        const loaded = await drawer.ensureState(state);
+        const info = drawer.getAnimationInfo(state);
+        let visibleFrames = 0;
+        for (let frame = 0; frame < info.totalFrames; frame += 1) {
+          drawer.drawFrame(ctx, canvas.width, canvas.height, state, frame, info.totalFrames);
+          const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          let visibleSamples = 0;
+          for (let index = 3; index < pixels.length; index += 64) {
+            if (pixels[index] > 24) visibleSamples += 1;
+          }
+          if (visibleSamples > 0) visibleFrames += 1;
+        }
+        results[state] = { loaded, totalFrames: info.totalFrames, visibleFrames };
+      }
+      return results;
+    })()`);
+    assert.deepEqual(redesignedActions.walk, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+    assert.deepEqual(redesignedActions.roll, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+
+    await evaluate(petTarget, `(() => {
+      const controller = window.__qixiSmoke.controller;
+      const now = performance.now();
+      controller._switchState(controller.STATES.IDLE, true);
+      controller.lastUserActivityTime = now;
+      controller.nextWalkTime = Infinity;
+      controller.nextJumpTime = now - 1;
+      return true;
+    })()`);
+    const automaticJump = await waitFor(
+      'the scheduled jump event',
+      () => evaluate(petTarget, `({
+        state: window.__qixiSmoke.controller.state,
+        frames: window.__qixiSmoke.controller.totalFrames,
+      })`),
+      (state) => state?.state === 'jump' && state.frames === 4,
+    );
+
+    await evaluate(petTarget, `(() => {
+      const controller = window.__qixiSmoke.controller;
+      const now = performance.now();
+      controller._switchState(controller.STATES.IDLE, true);
+      controller.lastUserActivityTime = now - controller.sleepAfterMs - 1;
+      controller.nextWalkTime = Infinity;
+      controller.nextJumpTime = Infinity;
+      return true;
+    })()`);
+    const inactivitySleep = await waitFor(
+      'the inactivity sleep event',
+      () => evaluate(petTarget, `({
+        state: window.__qixiSmoke.controller.state,
+        frames: window.__qixiSmoke.controller.totalFrames,
+      })`),
+      (state) => state?.state === 'sleep' && state.frames === 4,
+    );
+    const scheduledEvents = { automaticJump, inactivitySleep };
+
     await evaluate(petTarget, 'window.electronAPI.openSettingsWindow(); true');
     const settingsTargets = await waitFor(
       'the settings renderer',
@@ -182,6 +258,12 @@ async function main() {
     assert.equal(settingsState.hasSize, true);
     assert.equal(settingsState.hasReminder, true);
     assert.ok(settingsState.controls >= 4);
+    const screenshot = await cdpCommand(settingsTarget, 'Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+    });
+    fs.mkdirSync(path.dirname(settingsPreviewPath), { recursive: true });
+    fs.writeFileSync(settingsPreviewPath, screenshot.data, 'base64');
 
     await evaluate(settingsTarget, `window.electronAPI.saveSettings({
       size: 1.2,
@@ -235,7 +317,10 @@ async function main() {
     report = {
       ok: true,
       pet: { ...petState, idleDrawsPerSecond, lazyLoadedStates },
+      redesignedActions,
+      scheduledEvents,
       settings: settingsState,
+      settingsPreviewPath,
       appliedSettings,
       reminder: reminderState,
     };
@@ -258,9 +343,10 @@ async function main() {
       assert.equal(persistedSettings.size, 1.2);
       assert.equal(persistedSettings.opacity, 0.8);
       assert.equal(persistedSettings.reminderInterval, 1);
-      report.persistedSettings = persistedSettings;
+      if (report) report.persistedSettings = persistedSettings;
     }
     if (fs.existsSync(smokeSettingsPath)) fs.rmSync(smokeSettingsPath);
+    fs.rmSync(smokeProfileDir, { recursive: true, force: true });
   }
   console.log(JSON.stringify(report, null, 2));
 }

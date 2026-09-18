@@ -157,6 +157,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // 桌面宠物即使失焦或被其他窗口遮挡，也必须持续推进帧动画。
+      backgroundThrottling: false,
       additionalArguments: IS_SMOKE_TEST ? ['--qixi-smoke-test'] : [],
     },
   });
@@ -273,8 +275,8 @@ function createSettingsWindow() {
     ? screen.getDisplayMatching(mainWindow.getBounds())
     : screen.getPrimaryDisplay();
   const { workArea } = display;
-  const width = 360;
-  const height = 520;
+  const width = 420;
+  const height = Math.max(560, Math.min(720, workArea.height - 24));
   settingsWindow = new BrowserWindow({
     width,
     height,
@@ -282,6 +284,14 @@ function createSettingsWindow() {
     y: Math.round(workArea.y + (workArea.height - height) / 2),
     icon: APP_ICON_PATH,
     title: '七七 · 设置',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#00000000',
+      symbolColor: '#64584d',
+      height: 38,
+    },
+    backgroundColor: '#f3eee6',
+    show: false,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -294,6 +304,10 @@ function createSettingsWindow() {
   });
   settingsWindow.setMenuBarVisibility(false);
   settingsWindow.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
+  settingsWindow.once('ready-to-show', () => {
+    settingsWindow?.show();
+    settingsWindow?.focus();
+  });
   settingsWindow.on('closed', () => { settingsWindow = null; });
 }
 
@@ -452,12 +466,14 @@ app.whenReady().then(() => {
   if (!IS_SMOKE_TEST) applyAutoLaunch(settings.autoLaunch);
   createWindow();
   if (!IS_SMOKE_TEST) createTray();
-  const shortcutRegistered = globalShortcut.register(
-    'CommandOrControl+Shift+S',
-    createSettingsWindow,
-  );
-  if (!shortcutRegistered) {
-    console.warn('[SHORTCUT] Ctrl+Shift+S is already in use; use the tray menu instead.');
+  if (!IS_SMOKE_TEST) {
+    const shortcutRegistered = globalShortcut.register(
+      'CommandOrControl+Shift+S',
+      createSettingsWindow,
+    );
+    if (!shortcutRegistered) {
+      console.warn('[SHORTCUT] Ctrl+Shift+S is already in use; use the tray menu instead.');
+    }
   }
 });
 
