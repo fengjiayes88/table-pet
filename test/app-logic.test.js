@@ -77,3 +77,54 @@ test('normalizeSettings rejects non-boolean pomodoro toggle', () => {
   const normalized = normalizeSettings({ pomodoroEnabled: 'yes' });
   assert.equal(normalized.pomodoroEnabled, false);
 });
+
+const { todayKey, recordStat, getDailyStats } = require('../src/shared/app-logic');
+
+test('todayKey formats local date as YYYY-MM-DD', () => {
+  assert.equal(todayKey(new Date(2026, 9, 10, 0, 5)), '2026-10-10');
+  assert.equal(todayKey(new Date(2026, 0, 3, 23, 59)), '2026-01-03');
+});
+
+test('recordStat initializes and accumulates counters per day', () => {
+  let stats = recordStat({}, 'drink', new Date(2026, 9, 10));
+  assert.deepEqual(stats['2026-10-10'], { standup: 0, pomodoro: 0, drink: 1, eye: 0 });
+  stats = recordStat(stats, 'drink', new Date(2026, 9, 10));
+  stats = recordStat(stats, 'standup', new Date(2026, 9, 10));
+  assert.equal(stats['2026-10-10'].drink, 2);
+  assert.equal(stats['2026-10-10'].standup, 1);
+});
+
+test('recordStat prunes entries older than 30 days', () => {
+  const stats = {
+    '2026-08-31': { standup: 1, pomodoro: 0, drink: 0, eye: 0 }, // 40 days before 2026-10-10
+    '2026-09-11': { standup: 1, pomodoro: 0, drink: 0, eye: 0 }, // 29 days before, keep
+  };
+  const next = recordStat(stats, 'drink', new Date(2026, 9, 10));
+  assert.equal(next['2026-08-31'], undefined);
+  assert.equal(next['2026-09-11'].standup, 1);
+  assert.equal(next['2026-10-10'].drink, 1);
+});
+
+test('recordStat records into the day of the check-in moment, not the reminder', () => {
+  // 23:59 fired, checked in at 00:01 next day → counts to check-in day
+  const stats = recordStat({}, 'standup', new Date(2026, 9, 11, 0, 1));
+  assert.equal(stats['2026-10-11'].standup, 1);
+  assert.equal(stats['2026-10-10'], undefined);
+});
+
+test('recordStat ignores unknown event types', () => {
+  const stats = { '2026-10-10': { standup: 1, pomodoro: 0, drink: 0, eye: 0 } };
+  const next = recordStat(stats, 'sneeze', new Date(2026, 9, 10));
+  assert.deepEqual(next, stats);
+});
+
+test('getDailyStats returns zero counters for missing data', () => {
+  assert.deepEqual(
+    getDailyStats({}, new Date(2026, 9, 10)),
+    { standup: 0, pomodoro: 0, drink: 0, eye: 0 },
+  );
+  assert.deepEqual(
+    getDailyStats({ garbage: true }, new Date(2026, 9, 10)),
+    { standup: 0, pomodoro: 0, drink: 0, eye: 0 },
+  );
+});

@@ -80,4 +80,39 @@ function clampToWorkArea(x, y, width, height, workArea) {
   };
 }
 
-module.exports = { DEFAULT_SETTINGS, clamp, finiteNumber, normalizeSettings, clampToWorkArea };
+const STAT_TYPES = Object.freeze(['standup', 'pomodoro', 'drink', 'eye']);
+
+function todayKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function recordStat(stats, type, date = new Date()) {
+  if (!STAT_TYPES.includes(type)) return stats;
+  const key = todayKey(date);
+  const today = { standup: 0, pomodoro: 0, drink: 0, eye: 0, ...(stats?.[key] || {}) };
+  today[type] += 1;
+  const cutoff = new Date(date);
+  cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffKey = todayKey(cutoff);
+  const next = {};
+  for (const [k, v] of Object.entries(stats || {})) {
+    if (k >= cutoffKey && k !== key) next[k] = v;
+  }
+  next[key] = today;
+  return next;
+}
+
+function getDailyStats(stats, date = new Date()) {
+  const day = stats?.[todayKey(date)];
+  return {
+    standup: day?.standup ?? 0,
+    pomodoro: day?.pomodoro ?? 0,
+    drink: day?.drink ?? 0,
+    eye: day?.eye ?? 0,
+  };
+}
+
+module.exports = { DEFAULT_SETTINGS, clamp, finiteNumber, normalizeSettings, clampToWorkArea, todayKey, recordStat, getDailyStats };
