@@ -89,27 +89,6 @@
 
           <div class="setting-row compact-row">
             <div class="setting-copy">
-              <label for="reminder-enabled">休息提醒</label>
-              <p>工作一段时间后提醒你活动一下</p>
-            </div>
-            <label class="switch" aria-label="休息提醒">
-              <input type="checkbox" id="reminder-enabled" checked>
-              <span class="switch-track"><span class="switch-thumb"></span></span>
-            </label>
-          </div>
-
-          <div class="sub-setting" id="interval-group">
-            <label for="reminder-interval">提醒间隔</label>
-            <div class="number-control">
-              <input type="number" id="reminder-interval" min="1" max="999" step="1" value="45">
-              <span>分钟</span>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row compact-row">
-            <div class="setting-copy">
               <label for="autolaunch">开机自启</label>
               <p>登录系统后自动唤醒七七</p>
             </div>
@@ -131,6 +110,27 @@
         </div>
 
         <div class="panel behavior-panel">
+          <div class="setting-row compact-row">
+            <div class="setting-copy">
+              <label for="reminder-enabled">休息提醒</label>
+              <p>久坐提醒：工作一段时间后提醒你起身活动</p>
+            </div>
+            <label class="switch" aria-label="休息提醒">
+              <input type="checkbox" id="reminder-enabled" checked>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+
+          <div class="sub-setting" id="interval-group">
+            <label for="reminder-interval">提醒间隔</label>
+            <div class="number-control">
+              <input type="number" id="reminder-interval" min="1" max="999" step="1" value="45">
+              <span>分钟</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
           <div class="setting-row compact-row">
             <div class="setting-copy">
               <label for="pomodoro-enabled">番茄钟模式</label>
@@ -172,7 +172,7 @@
           </div>
 
           <div class="sub-setting" id="drink-interval-group">
-            <label for="drink-interval">提醒间隔</label>
+            <label for="drink-interval">喝水间隔</label>
             <div class="number-control">
               <input type="number" id="drink-interval" min="5" max="999" step="1" value="60">
               <span>分钟</span>
@@ -193,7 +193,7 @@
           </div>
 
           <div class="sub-setting" id="eye-interval-group">
-            <label for="eye-interval">提醒间隔</label>
+            <label for="eye-interval">眼操间隔</label>
             <div class="number-control">
               <input type="number" id="eye-interval" min="5" max="999" step="1" value="45">
               <span>分钟</span>

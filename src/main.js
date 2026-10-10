@@ -21,6 +21,18 @@ const {
   getDailyStats,
 } = require('./shared/app-logic');
 
+// 单实例锁：旧实例与新实例共存会互相覆盖 settings.json（旧主进程不认新字段），后来者直接退出并唤起已有实例
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.isVisible() ? mainWindow.focus() : mainWindow.showInactive();
+    }
+  });
+}
+
 const IS_SMOKE_TEST = process.env.QIXI_SMOKE_TEST === '1';
 const SETTINGS_PATH = IS_SMOKE_TEST
   ? path.join(app.getPath('temp'), `qixi-pet-smoke-${process.pid}.json`)
@@ -533,7 +545,7 @@ ipcMain.handle('stats:query', (event) => {
   return getTodayStats();
 });
 
-app.whenReady().then(() => {
+if (gotSingleInstanceLock) app.whenReady().then(() => {
   if (!IS_SMOKE_TEST) applyAutoLaunch(settings.autoLaunch);
   createWindow();
   if (!IS_SMOKE_TEST) createTray();
