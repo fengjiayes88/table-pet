@@ -51,8 +51,13 @@ test('normalizeSettings provides health feature defaults for empty input', () =>
   assert.equal(normalized.pomodoroBreak, 5);
   assert.equal(normalized.drinkReminderEnabled, false);
   assert.equal(normalized.drinkReminderInterval, 60);
-  assert.equal(normalized.eyeReminderEnabled, false);
-  assert.equal(normalized.eyeReminderInterval, 45);
+});
+
+test('normalizeSettings drops removed eye reminder fields', () => {
+  // 眼操提醒已移除：旧 settings.json 里的眼操字段不再生效
+  const normalized = normalizeSettings({ eyeReminderEnabled: true, eyeReminderInterval: 99 });
+  assert.equal(normalized.eyeReminderEnabled, undefined);
+  assert.equal(normalized.eyeReminderInterval, undefined);
 });
 
 test('normalizeSettings clamps health fields into valid ranges', () => {
@@ -60,12 +65,10 @@ test('normalizeSettings clamps health fields into valid ranges', () => {
     pomodoroWork: 200,
     pomodoroBreak: 0,
     drinkReminderInterval: 1,
-    eyeReminderInterval: 1000,
   });
   assert.equal(normalized.pomodoroWork, 120);
   assert.equal(normalized.pomodoroBreak, 1);
   assert.equal(normalized.drinkReminderInterval, 5);
-  assert.equal(normalized.eyeReminderInterval, 999);
 });
 
 test('normalizeSettings falls back to defaults for non-numeric health values', () => {
@@ -87,7 +90,7 @@ test('todayKey formats local date as YYYY-MM-DD', () => {
 
 test('recordStat initializes and accumulates counters per day', () => {
   let stats = recordStat({}, 'drink', new Date(2026, 9, 10));
-  assert.deepEqual(stats['2026-10-10'], { standup: 0, pomodoro: 0, drink: 1, eye: 0 });
+  assert.deepEqual(stats['2026-10-10'], { standup: 0, pomodoro: 0, drink: 1 });
   stats = recordStat(stats, 'drink', new Date(2026, 9, 10));
   stats = recordStat(stats, 'standup', new Date(2026, 9, 10));
   assert.equal(stats['2026-10-10'].drink, 2);
@@ -96,8 +99,8 @@ test('recordStat initializes and accumulates counters per day', () => {
 
 test('recordStat prunes entries older than 30 days', () => {
   const stats = {
-    '2026-08-31': { standup: 1, pomodoro: 0, drink: 0, eye: 0 }, // 40 days before 2026-10-10
-    '2026-09-11': { standup: 1, pomodoro: 0, drink: 0, eye: 0 }, // 29 days before, keep
+    '2026-08-31': { standup: 1, pomodoro: 0, drink: 0 }, // 40 days before 2026-10-10
+    '2026-09-11': { standup: 1, pomodoro: 0, drink: 0 }, // 29 days before, keep
   };
   const next = recordStat(stats, 'drink', new Date(2026, 9, 10));
   assert.equal(next['2026-08-31'], undefined);
@@ -113,7 +116,7 @@ test('recordStat records into the day of the check-in moment, not the reminder',
 });
 
 test('recordStat ignores unknown event types', () => {
-  const stats = { '2026-10-10': { standup: 1, pomodoro: 0, drink: 0, eye: 0 } };
+  const stats = { '2026-10-10': { standup: 1, pomodoro: 0, drink: 0 } };
   const next = recordStat(stats, 'sneeze', new Date(2026, 9, 10));
   assert.deepEqual(next, stats);
 });
@@ -121,10 +124,10 @@ test('recordStat ignores unknown event types', () => {
 test('getDailyStats returns zero counters for missing data', () => {
   assert.deepEqual(
     getDailyStats({}, new Date(2026, 9, 10)),
-    { standup: 0, pomodoro: 0, drink: 0, eye: 0 },
+    { standup: 0, pomodoro: 0, drink: 0 },
   );
   assert.deepEqual(
     getDailyStats({ garbage: true }, new Date(2026, 9, 10)),
-    { standup: 0, pomodoro: 0, drink: 0, eye: 0 },
+    { standup: 0, pomodoro: 0, drink: 0 },
   );
 });

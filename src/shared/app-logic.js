@@ -12,8 +12,6 @@ const DEFAULT_SETTINGS = Object.freeze({
   pomodoroBreak: 5,
   drinkReminderEnabled: false,
   drinkReminderInterval: 60,
-  eyeReminderEnabled: false,
-  eyeReminderInterval: 45,
 });
 
 function clamp(value, minimum, maximum) {
@@ -62,14 +60,6 @@ function normalizeSettings(input = {}, base = DEFAULT_SETTINGS) {
     5,
     999,
   ));
-  next.eyeReminderEnabled = typeof input.eyeReminderEnabled === 'boolean'
-    ? input.eyeReminderEnabled
-    : base.eyeReminderEnabled;
-  next.eyeReminderInterval = Math.round(clamp(
-    finiteNumber(input.eyeReminderInterval, base.eyeReminderInterval),
-    5,
-    999,
-  ));
   return next;
 }
 
@@ -80,7 +70,7 @@ function clampToWorkArea(x, y, width, height, workArea) {
   };
 }
 
-const STAT_TYPES = Object.freeze(['standup', 'pomodoro', 'drink', 'eye']);
+const STAT_TYPES = Object.freeze(['standup', 'pomodoro', 'drink']);
 
 function todayKey(date = new Date()) {
   const y = date.getFullYear();
@@ -92,7 +82,7 @@ function todayKey(date = new Date()) {
 function recordStat(stats, type, date = new Date()) {
   if (!STAT_TYPES.includes(type)) return stats;
   const key = todayKey(date);
-  const today = { standup: 0, pomodoro: 0, drink: 0, eye: 0, ...(stats?.[key] || {}) };
+  const today = { standup: 0, pomodoro: 0, drink: 0, ...(stats?.[key] || {}) };
   today[type] += 1;
   const cutoff = new Date(date);
   cutoff.setDate(cutoff.getDate() - 30);
@@ -111,7 +101,6 @@ function getDailyStats(stats, date = new Date()) {
     standup: day?.standup ?? 0,
     pomodoro: day?.pomodoro ?? 0,
     drink: day?.drink ?? 0,
-    eye: day?.eye ?? 0,
   };
 }
 

@@ -17,9 +17,6 @@
   const drinkEnabledElement = get('drink-enabled');
   const drinkIntervalElement = get('drink-interval');
   const drinkIntervalGroup = get('drink-interval-group');
-  const eyeEnabledElement = get('eye-enabled');
-  const eyeIntervalElement = get('eye-interval');
-  const eyeIntervalGroup = get('eye-interval-group');
   const todayStats = get('today-stats');
   const saveStatus = get('save-status');
   const saveStatusText = get('save-status-text');
@@ -59,13 +56,10 @@
     pomodoroBreakElement.value = settings.pomodoroBreak;
     drinkEnabledElement.checked = settings.drinkReminderEnabled;
     drinkIntervalElement.value = settings.drinkReminderInterval;
-    eyeEnabledElement.checked = settings.eyeReminderEnabled;
-    eyeIntervalElement.value = settings.eyeReminderInterval;
     updateReminderControls(settings.reminderEnabled);
     updateNumberGroup(pomodoroWorkGroup, pomodoroWorkElement, settings.pomodoroEnabled);
     updateNumberGroup(pomodoroBreakGroup, pomodoroBreakElement, settings.pomodoroEnabled);
     updateNumberGroup(drinkIntervalGroup, drinkIntervalElement, settings.drinkReminderEnabled);
-    updateNumberGroup(eyeIntervalGroup, eyeIntervalElement, settings.eyeReminderEnabled);
   } catch (error) {
     console.error('[SETTINGS] 加载失败', error);
     setSaveStatus('error', '设置加载失败');
@@ -114,7 +108,6 @@
   bindNumberInput(pomodoroWorkElement, 'pomodoroWork', 25, 5, 120);
   bindNumberInput(pomodoroBreakElement, 'pomodoroBreak', 5, 1, 60);
   bindNumberInput(drinkIntervalElement, 'drinkReminderInterval', 60, 5, 999);
-  bindNumberInput(eyeIntervalElement, 'eyeReminderInterval', 45, 5, 999);
 
   pomodoroEnabledElement.addEventListener('change', () => {
     updateNumberGroup(pomodoroWorkGroup, pomodoroWorkElement, pomodoroEnabledElement.checked);
@@ -127,14 +120,9 @@
     apply('drinkReminderEnabled', drinkEnabledElement.checked);
   });
 
-  eyeEnabledElement.addEventListener('change', () => {
-    updateNumberGroup(eyeIntervalGroup, eyeIntervalElement, eyeEnabledElement.checked);
-    apply('eyeReminderEnabled', eyeEnabledElement.checked);
-  });
-
   function renderTodayStats(stats) {
     todayStats.textContent =
-      `起身 ${stats.standup} 次 · 番茄 ${stats.pomodoro} 个 · 喝水 ${stats.drink} 次 · 眼操 ${stats.eye} 次`;
+      `起身 ${stats.standup} 次 · 番茄 ${stats.pomodoro} 个 · 喝水 ${stats.drink} 次`;
   }
 
   async function refreshTodayStats() {

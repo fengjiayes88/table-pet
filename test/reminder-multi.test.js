@@ -141,7 +141,7 @@ test('showBubble forwards the configured message', () => {
   };
 
   const reminder = new Reminder({
-    type: 'eye',
+    type: 'drink',
     setIntervalFn: clock.setIntervalFn,
     clearIntervalFn: clock.clearIntervalFn,
     nowFn: clock.nowFn,
@@ -149,10 +149,10 @@ test('showBubble forwards the configured message', () => {
   reminder.showBubble(null);
   assert.equal(shown, '该休息啦～双击我解除提醒吧！');
 
-  reminder.configure({ message: '眼睛也需要休息，做个眼保健操吧～双击七七打卡！' });
+  reminder.configure({ message: '该喝水啦～双击七七打卡！' });
   reminder.bubbleVisible = false; // 允许再次弹气泡
   reminder.showBubble(null);
-  assert.equal(shown, '眼睛也需要休息，做个眼保健操吧～双击七七打卡！');
+  assert.equal(shown, '该喝水啦～双击七七打卡！');
 
   delete global.window;
 });

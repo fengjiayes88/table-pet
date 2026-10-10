@@ -417,7 +417,7 @@ function dismissReminderBubble(notifyPet = true) {
 function showTodayStatsBubble() {
   const s = getTodayStats();
   showReminderBubble(
-    `今日健康报告：起身 ${s.standup} 次 · 番茄 ${s.pomodoro} 个 · 喝水 ${s.drink} 次 · 眼操 ${s.eye} 次`
+    `今日健康报告：起身 ${s.standup} 次 · 番茄 ${s.pomodoro} 个 · 喝水 ${s.drink} 次`
   );
   bubbleIsPureDisplay = true;
 }
@@ -540,7 +540,7 @@ ipcMain.handle('stats:event', (event, type) => {
 
 ipcMain.handle('stats:query', (event) => {
   if (!isPetSender(event) && !isSettingsSender(event)) {
-    return { standup: 0, pomodoro: 0, drink: 0, eye: 0 };
+    return { standup: 0, pomodoro: 0, drink: 0 };
   }
   return getTodayStats();
 });

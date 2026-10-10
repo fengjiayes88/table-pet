@@ -2,10 +2,9 @@
   try {
     const canvas = document.getElementById('pet-canvas');
     const drawer = new PetDrawer(1);
-    // 久坐沿用默认实例与行为；喝水/眼操为多类型提醒（文案见 V1.3 规格 3.1）
+    // 久坐沿用默认实例与行为；喝水为新增多类型提醒（文案见 V1.3 规格 3.1）
     const sedentaryReminder = new Reminder();
     const drinkReminder = new Reminder({ type: 'drink', message: '该喝水啦～双击七七打卡！' });
-    const eyeReminder = new Reminder({ type: 'eye', message: '眼睛也需要休息，做个眼保健操吧～双击七七打卡！' });
     const controller = new PetController(canvas, drawer, sedentaryReminder);
 
     let currentSettings = null;
@@ -24,7 +23,7 @@
       });
     };
 
-    for (const instance of [sedentaryReminder, drinkReminder, eyeReminder]) {
+    for (const instance of [sedentaryReminder, drinkReminder]) {
       instance.onTrigger = () => showInstanceBubble(instance);
       instance.onDismiss = (checkIn) => {
         if (checkIn) window.electronAPI?.statsEvent?.(instance.type); // 仅双击打卡，气泡 X 关闭不计数
@@ -57,10 +56,6 @@
       enabled: currentSettings.drinkReminderEnabled ?? false,
       intervalMinutes: currentSettings.drinkReminderInterval,
     });
-    eyeReminder.configure({
-      enabled: currentSettings.eyeReminderEnabled ?? false,
-      intervalMinutes: currentSettings.eyeReminderInterval,
-    });
     pomodoro.configure({
       enabled: currentSettings.pomodoroEnabled ?? false,
       workMinutes: currentSettings.pomodoroWork,
@@ -74,10 +69,6 @@
       drinkReminder.configure({
         enabled: next.drinkReminderEnabled ?? false,
         intervalMinutes: next.drinkReminderInterval,
-      });
-      eyeReminder.configure({
-        enabled: next.eyeReminderEnabled ?? false,
-        intervalMinutes: next.eyeReminderInterval,
       });
       pomodoro.configure({
         enabled: next.pomodoroEnabled ?? false,
@@ -106,7 +97,6 @@
     window.addEventListener('beforeunload', () => {
       controller.destroy();
       drinkReminder.destroy();
-      eyeReminder.destroy();
       pomodoro.stop();
     }, { once: true });
   } catch (error) {
