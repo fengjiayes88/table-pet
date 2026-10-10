@@ -115,4 +115,4 @@ function getDailyStats(stats, date = new Date()) {
   };
 }
 
-module.exports = { DEFAULT_SETTINGS, clamp, finiteNumber, normalizeSettings, clampToWorkArea, todayKey, recordStat, getDailyStats };
+module.exports = { DEFAULT_SETTINGS, clamp, finiteNumber, normalizeSettings, clampToWorkArea, STAT_TYPES, todayKey, recordStat, getDailyStats };

@@ -16,12 +16,18 @@ const {
   finiteNumber,
   normalizeSettings,
   clampToWorkArea,
+  STAT_TYPES,
+  recordStat,
+  getDailyStats,
 } = require('./shared/app-logic');
 
 const IS_SMOKE_TEST = process.env.QIXI_SMOKE_TEST === '1';
 const SETTINGS_PATH = IS_SMOKE_TEST
   ? path.join(app.getPath('temp'), `qixi-pet-smoke-${process.pid}.json`)
   : path.join(app.getPath('userData'), 'settings.json');
+const STATS_PATH = IS_SMOKE_TEST
+  ? path.join(app.getPath('temp'), `qixi-pet-smoke-stats-${process.pid}.json`)
+  : path.join(app.getPath('userData'), 'stats.json');
 const APP_ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.ico');
 const PET_BASE_SIZE = 180;
 
@@ -60,6 +66,40 @@ function saveSettingsNow() {
 function scheduleSettingsSave(delay = 300) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveSettingsNow, delay);
+}
+
+function loadStats() {
+  try {
+    if (fs.existsSync(STATS_PATH)) {
+      return JSON.parse(fs.readFileSync(STATS_PATH, 'utf8'));
+    }
+  } catch (error) {
+    console.error('[STATS] 统计数据损坏，已重置', error);
+  }
+  return {};
+}
+
+function saveStats(stats) {
+  try {
+    fs.mkdirSync(path.dirname(STATS_PATH), { recursive: true });
+    fs.writeFileSync(STATS_PATH, JSON.stringify(stats, null, 2), 'utf8');
+  } catch (error) {
+    console.error('[STATS] 保存失败', error);
+  }
+}
+
+function getTodayStats() {
+  return getDailyStats(loadStats(), new Date());
+}
+
+function handleStatsEvent(type) {
+  if (!STAT_TYPES.includes(type)) return getTodayStats();
+  const next = recordStat(loadStats(), type, new Date());
+  saveStats(next);
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('stats-updated');
+  }
+  return getDailyStats(next, new Date());
 }
 
 function applyAutoLaunch(openAtLogin) {
@@ -460,6 +500,18 @@ ipcMain.on('quit-app', (event) => {
   if (!isPetSender(event) && !isSettingsSender(event)) return;
   isQuitting = true;
   app.quit();
+});
+
+ipcMain.handle('stats:event', (event, type) => {
+  if (!isPetSender(event) && !isSettingsSender(event)) return getTodayStats();
+  return handleStatsEvent(type);
+});
+
+ipcMain.handle('stats:query', (event) => {
+  if (!isPetSender(event) && !isSettingsSender(event)) {
+    return { standup: 0, pomodoro: 0, drink: 0, eye: 0 };
+  }
+  return getTodayStats();
 });
 
 app.whenReady().then(() => {
