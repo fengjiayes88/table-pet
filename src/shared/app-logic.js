@@ -7,6 +7,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   autoLaunch: true,
   reminderEnabled: true,
   reminderInterval: 45,
+  pomodoroEnabled: false,
+  pomodoroWork: 25,
+  pomodoroBreak: 5,
+  drinkReminderEnabled: false,
+  drinkReminderInterval: 60,
+  eyeReminderEnabled: false,
+  eyeReminderInterval: 45,
 });
 
 function clamp(value, minimum, maximum) {
@@ -32,6 +39,35 @@ function normalizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   next.reminderInterval = Math.round(clamp(
     finiteNumber(input.reminderInterval, base.reminderInterval),
     1,
+    999,
+  ));
+  next.pomodoroEnabled = typeof input.pomodoroEnabled === 'boolean'
+    ? input.pomodoroEnabled
+    : base.pomodoroEnabled;
+  next.pomodoroWork = Math.round(clamp(
+    finiteNumber(input.pomodoroWork, base.pomodoroWork),
+    5,
+    120,
+  ));
+  next.pomodoroBreak = Math.round(clamp(
+    finiteNumber(input.pomodoroBreak, base.pomodoroBreak),
+    1,
+    60,
+  ));
+  next.drinkReminderEnabled = typeof input.drinkReminderEnabled === 'boolean'
+    ? input.drinkReminderEnabled
+    : base.drinkReminderEnabled;
+  next.drinkReminderInterval = Math.round(clamp(
+    finiteNumber(input.drinkReminderInterval, base.drinkReminderInterval),
+    5,
+    999,
+  ));
+  next.eyeReminderEnabled = typeof input.eyeReminderEnabled === 'boolean'
+    ? input.eyeReminderEnabled
+    : base.eyeReminderEnabled;
+  next.eyeReminderInterval = Math.round(clamp(
+    finiteNumber(input.eyeReminderInterval, base.eyeReminderInterval),
+    5,
     999,
   ));
   return next;

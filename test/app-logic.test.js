@@ -43,3 +43,37 @@ test('clampToWorkArea respects non-zero and negative display origins', () => {
     { x: -180, y: 900 },
   );
 });
+
+test('normalizeSettings provides health feature defaults for empty input', () => {
+  const normalized = normalizeSettings({});
+  assert.equal(normalized.pomodoroEnabled, false);
+  assert.equal(normalized.pomodoroWork, 25);
+  assert.equal(normalized.pomodoroBreak, 5);
+  assert.equal(normalized.drinkReminderEnabled, false);
+  assert.equal(normalized.drinkReminderInterval, 60);
+  assert.equal(normalized.eyeReminderEnabled, false);
+  assert.equal(normalized.eyeReminderInterval, 45);
+});
+
+test('normalizeSettings clamps health fields into valid ranges', () => {
+  const normalized = normalizeSettings({
+    pomodoroWork: 200,
+    pomodoroBreak: 0,
+    drinkReminderInterval: 1,
+    eyeReminderInterval: 1000,
+  });
+  assert.equal(normalized.pomodoroWork, 120);
+  assert.equal(normalized.pomodoroBreak, 1);
+  assert.equal(normalized.drinkReminderInterval, 5);
+  assert.equal(normalized.eyeReminderInterval, 999);
+});
+
+test('normalizeSettings falls back to defaults for non-numeric health values', () => {
+  const normalized = normalizeSettings({ pomodoroWork: 'abc' });
+  assert.equal(normalized.pomodoroWork, 25);
+});
+
+test('normalizeSettings rejects non-boolean pomodoro toggle', () => {
+  const normalized = normalizeSettings({ pomodoroEnabled: 'yes' });
+  assert.equal(normalized.pomodoroEnabled, false);
+});
