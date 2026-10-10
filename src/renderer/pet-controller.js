@@ -8,6 +8,7 @@ class PetController {
     this.ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: true });
     this.drawer = petDrawer;
     this.reminder = reminder;
+    this.activeReminder = null; // 当前持有气泡的提醒实例（app.js 维护），决定打卡归属
 
     this.STATES = Object.freeze({
       IDLE: 'idle',
@@ -81,7 +82,6 @@ class PetController {
       enabled: this.settings.reminderEnabled,
       intervalMinutes: this.settings.reminderInterval,
     });
-    this.reminder.onTrigger = () => this._onReminderTrigger();
 
     this._resizeCanvas();
     this._bindEvents();
@@ -106,7 +106,9 @@ class PetController {
             enabled: nextSettings.reminderEnabled,
             intervalMinutes: nextSettings.reminderInterval,
           });
-          if (!nextSettings.reminderEnabled && this.isReminding) this.reminder.reset();
+          if (!nextSettings.reminderEnabled && this.activeReminder === this.reminder) {
+            this.activeReminder.reset();
+          }
         }
 
         this.drawer.scale = nextSettings.size;
@@ -119,7 +121,10 @@ class PetController {
       });
 
       window.electronAPI.onReminderDismissed(() => {
-        if (this.isReminding) this.reminder.reset(true);
+        if (!this.isReminding) return;
+        // 气泡关闭按钮等非双击解除：交还活跃实例；番茄钟/托盘气泡无实例，仅收尾状态
+        if (this.activeReminder) this.activeReminder.reset(true);
+        else this.onReminderDismissed();
       });
     }
   }
@@ -319,8 +324,8 @@ class PetController {
 
   _onDoubleClick() {
     this._markUserActivity();
-    if (this.state === this.STATES.REMINDER) {
-      this.reminder.reset();
+    if (this.state === this.STATES.REMINDER && this.activeReminder) {
+      this.activeReminder.reset();
       return;
     }
     this._switchState(this.STATES.ROLL);
@@ -342,18 +347,15 @@ class PetController {
     this._updatePointerPassthrough();
   }
 
-  _onReminderTrigger() {
-    if (this.isReminding) return;
+  onReminderTriggered() {
     this.isReminding = true;
     this._switchState(this.STATES.REMINDER);
-    this.reminder.showBubble(this.canvas);
   }
 
   onReminderDismissed() {
     this._markUserActivity();
     this.isReminding = false;
     this._switchState(this.STATES.IDLE);
-    this.reminder.start(true);
   }
 
   _switchState(newState, force = false) {

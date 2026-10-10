@@ -483,6 +483,8 @@ ipcMain.on('open-settings-window', (event) => {
 
 ipcMain.handle('show-reminder-bubble', (event, message) => {
   if (!isPetSender(event)) return false;
+  // 气泡互斥：窗口存活即被占用（含创建中），后来者拒绝并自行重启计时
+  if (reminderWindow && !reminderWindow.isDestroyed()) return false;
   showReminderBubble(typeof message === 'string' ? message.slice(0, 120) : '该休息啦～');
   return true;
 });
