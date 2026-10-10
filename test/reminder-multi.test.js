@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Reminder = require('../src/renderer/reminder');
+const { STAT_TYPES } = require('../src/shared/app-logic');
 
 // 注入式计时器：手动驱动 tick，时间可拨
 function createFakeClock() {
@@ -23,6 +24,50 @@ function createFakeClock() {
   };
   return clock;
 }
+
+test('default reminder type is a valid stat event type', () => {
+  // 久坐实例用默认构造；其 type 的唯一消费方是 statsEvent，必须是合法统计事件名
+  assert.ok(STAT_TYPES.includes(new Reminder().type),
+    `default type '${new Reminder().type}' must be a valid stats event type`);
+});
+
+test('onDismiss receives checkIn only for explicit check-in resets', () => {
+  const clock = createFakeClock();
+  global.window = {}; // dismissBubble 内的 optional chain 需要 window 存在
+  const reminder = new Reminder({
+    setIntervalFn: clock.setIntervalFn,
+    clearIntervalFn: clock.clearIntervalFn,
+    nowFn: clock.nowFn,
+  });
+  const checkIns = [];
+  reminder.onDismiss = (checkIn) => checkIns.push(checkIn);
+
+  reminder.reset(); // 设置关闭等路径：不算打卡
+  reminder.reset(true); // 气泡 X 关闭广播：不算打卡
+  reminder.reset(false, true); // 双击宠物：打卡
+  assert.deepEqual(checkIns, [false, false, true]);
+
+  delete global.window;
+});
+
+test('configure with unchanged values does not restart the countdown', () => {
+  const clock = createFakeClock();
+  const reminder = new Reminder({
+    setIntervalFn: clock.setIntervalFn,
+    clearIntervalFn: clock.clearIntervalFn,
+    nowFn: clock.nowFn,
+  });
+  let triggers = 0;
+  reminder.onTrigger = () => { triggers += 1; };
+
+  reminder.configure({ enabled: true, intervalMinutes: 2 });
+  clock.advanceMinutes(1);
+  assert.equal(triggers, 0);
+
+  reminder.configure({ enabled: true, intervalMinutes: 2 }); // 无关设置保存触发同值 configure
+  clock.advanceMinutes(1);
+  assert.equal(triggers, 1, 'same-value configure must not reset the countdown');
+});
 
 test('multiple reminders with different intervals trigger independently', () => {
   const clockA = createFakeClock();

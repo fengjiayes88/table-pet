@@ -93,7 +93,10 @@ function getTodayStats() {
 }
 
 function handleStatsEvent(type) {
-  if (!STAT_TYPES.includes(type)) return getTodayStats();
+  if (!STAT_TYPES.includes(type)) {
+    console.warn(`[STATS] 忽略非法统计事件类型: ${type}`);
+    return getTodayStats();
+  }
   const next = recordStat(loadStats(), type, new Date());
   saveStats(next);
   if (settingsWindow && !settingsWindow.isDestroyed()) {

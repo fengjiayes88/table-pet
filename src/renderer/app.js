@@ -26,8 +26,8 @@
 
     for (const instance of [sedentaryReminder, drinkReminder, eyeReminder]) {
       instance.onTrigger = () => showInstanceBubble(instance);
-      instance.onDismiss = () => {
-        window.electronAPI?.statsEvent?.(instance.type);
+      instance.onDismiss = (checkIn) => {
+        if (checkIn) window.electronAPI?.statsEvent?.(instance.type); // 仅双击打卡，气泡 X 关闭不计数
         controller.activeReminder = null;
         controller.onReminderDismissed();
         // 解除后开启下一轮；久坐实例在番茄钟期间保持让位

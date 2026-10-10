@@ -325,7 +325,7 @@ class PetController {
   _onDoubleClick() {
     this._markUserActivity();
     if (this.state === this.STATES.REMINDER && this.activeReminder) {
-      this.activeReminder.reset();
+      this.activeReminder.reset(false, true); // 双击是唯一打卡路径
       return;
     }
     this._switchState(this.STATES.ROLL);

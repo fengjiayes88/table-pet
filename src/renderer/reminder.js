@@ -3,7 +3,8 @@
  */
 class Reminder {
   constructor({
-    type = 'sedentary',
+    // type 的唯一消费方是 statsEvent，必须与 STAT_TYPES 一致（规格 3.3 事件名 standup）
+    type = 'standup',
     message = '该休息啦～双击我解除提醒吧！',
     setIntervalFn = setInterval.bind(globalThis),
     clearIntervalFn = clearInterval.bind(globalThis),
@@ -25,6 +26,8 @@ class Reminder {
   }
 
   configure({ enabled, intervalMinutes, message }) {
+    const prevEnabled = this.enabled;
+    const prevInterval = this.intervalMinutes;
     if (enabled !== undefined) this.enabled = !!enabled;
     if (intervalMinutes !== undefined) {
       const parsed = Number(intervalMinutes);
@@ -33,7 +36,11 @@ class Reminder {
         : 45;
     }
     if (message !== undefined) this.message = String(message);
-    this.enabled ? this.start(true) : this.stop();
+    // 仅在开关/间隔实际变化、或应运行而未运行时重启，避免无关设置保存重置倒计时
+    const timingChanged = this.enabled !== prevEnabled || this.intervalMinutes !== prevInterval;
+    if (timingChanged || (this.enabled && !this.timerId)) {
+      this.enabled ? this.start(true) : this.stop();
+    }
   }
 
   start(resetTimer = true) {
@@ -61,10 +68,10 @@ class Reminder {
     this.timerId = null;
   }
 
-  reset(fromBubbleWindow = false) {
+  reset(fromBubbleWindow = false, checkIn = false) {
     this.startTime = this.nowFn();
     this.dismissBubble(!fromBubbleWindow);
-    this.onDismiss?.();
+    this.onDismiss?.(checkIn);
   }
 
   triggerReminder() {
