@@ -6,8 +6,8 @@ class Pomodoro {
   constructor({
     onPhaseComplete = null,
     onTick = null,
-    setIntervalFn = setInterval,
-    clearIntervalFn = clearInterval,
+    setIntervalFn = setInterval.bind(globalThis),
+    clearIntervalFn = clearInterval.bind(globalThis),
     nowFn = Date.now,
   } = {}) {
     this.onPhaseComplete = onPhaseComplete;

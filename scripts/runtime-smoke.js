@@ -137,7 +137,7 @@ async function main() {
     );
     assert.equal(petState.fatal, false);
     assert.equal(petState.backingWidth, Math.round(petState.cssWidth * petState.dpr));
-    assert.deepEqual(petState.loadedStates, ['idle']);
+    assert.deepEqual(petState.loadedStates, ['idle', 'reminder']);
 
     const idleDrawsPerSecond = await evaluate(petTarget, `(async () => {
       const drawer = window.__qixiSmoke.drawer;
@@ -171,7 +171,7 @@ async function main() {
     const lazyLoadedStates = await waitFor(
       'an interaction sprite to load lazily',
       () => evaluate(petTarget, 'window.__qixiSmoke.drawer.getLoadedStates()'),
-      (states) => states.length === 2,
+      (states) => states.length === 3,
     );
     assert.ok(lazyLoadedStates.some((state) => ['jump', 'headTilt', 'pawReach'].includes(state)));
 

@@ -117,6 +117,7 @@ function applyAutoLaunch(openAtLogin) {
 let mainWindow = null;
 let settingsWindow = null;
 let reminderWindow = null;
+let bubbleIsPureDisplay = false; // 托盘统计等纯展示气泡：关闭不广播 reminder-dismissed
 let tray = null;
 let isQuitting = false;
 
@@ -281,6 +282,7 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     { label: '设置', click: createSettingsWindow },
+    { label: '今日统计', click: showTodayStatsBubble },
     { type: 'separator' },
     {
       label: '开机自启',
@@ -389,9 +391,20 @@ function showReminderBubble(message) {
 function dismissReminderBubble(notifyPet = true) {
   if (reminderWindow && !reminderWindow.isDestroyed()) reminderWindow.close();
   reminderWindow = null;
-  if (notifyPet && mainWindow && !mainWindow.isDestroyed()) {
+  // 纯展示气泡（托盘统计）关闭不广播，避免误触发打卡
+  const notify = notifyPet && !bubbleIsPureDisplay;
+  bubbleIsPureDisplay = false;
+  if (notify && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('reminder-dismissed');
   }
+}
+
+function showTodayStatsBubble() {
+  const s = getTodayStats();
+  showReminderBubble(
+    `今日健康报告：起身 ${s.standup} 次 · 番茄 ${s.pomodoro} 个 · 喝水 ${s.drink} 次 · 眼操 ${s.eye} 次`
+  );
+  bubbleIsPureDisplay = true;
 }
 
 function isPetSender(event) {
@@ -485,6 +498,7 @@ ipcMain.handle('show-reminder-bubble', (event, message) => {
   if (!isPetSender(event)) return false;
   // 气泡互斥：窗口存活即被占用（含创建中），后来者拒绝并自行重启计时
   if (reminderWindow && !reminderWindow.isDestroyed()) return false;
+  bubbleIsPureDisplay = false; // 宠物提醒接管气泡，恢复关闭广播
   showReminderBubble(typeof message === 'string' ? message.slice(0, 120) : '该休息啦～');
   return true;
 });
