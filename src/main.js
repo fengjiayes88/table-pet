@@ -196,6 +196,18 @@ function updateReminderBubblePosition() {
   reminderWindow.setPosition(Math.round(x), Math.round(y), false);
 }
 
+// 显示器热切换（拔插/改分辨率/任务栏变化）：把宠物与气泡即时收回有效工作区
+function handleDisplayChange() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const size = petSize();
+  const bounds = mainWindow.getBounds();
+  const position = clampPosition(bounds.x, bounds.y, size, size);
+  if (position.x !== bounds.x || position.y !== bounds.y) {
+    mainWindow.setBounds({ x: position.x, y: position.y, width: size, height: size });
+  }
+  updateReminderBubblePosition();
+}
+
 function createWindow() {
   const bounds = initialPetBounds();
   mainWindow = new BrowserWindow({
@@ -548,6 +560,10 @@ ipcMain.handle('stats:query', (event) => {
 if (gotSingleInstanceLock) app.whenReady().then(() => {
   if (!IS_SMOKE_TEST) applyAutoLaunch(settings.autoLaunch);
   createWindow();
+  // 多显示器适配：显示器热插拔/位移/分辨率变化时即时纠正宠物与气泡位置
+  screen.on('display-removed', handleDisplayChange);
+  screen.on('display-moved', handleDisplayChange);
+  screen.on('display-metrics-changed', handleDisplayChange);
   if (!IS_SMOKE_TEST) createTray();
   if (!IS_SMOKE_TEST) {
     const shortcutRegistered = globalShortcut.register(
