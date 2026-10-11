@@ -192,7 +192,7 @@ function validate() {
       results.push({ state, file: file.name, width: image.width, height: image.height });
     }
 
-    const stationary = ['idle', 'headTilt', 'pawReach', 'dragged', 'reminder', 'sleep'];
+    const stationary = ['idle', 'headTilt', 'pawReach', 'dragged', 'reminder', 'drinkReminder', 'sleep'];
     if (stationary.includes(state) && stateFrames.length > 1 && stateFrames.every((frame) => frame.centroid)) {
       const xs = stateFrames.map((frame) => frame.centroid[0]);
       const maxDrift = Math.max(...xs) - Math.min(...xs);

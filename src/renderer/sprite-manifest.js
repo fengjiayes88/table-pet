@@ -41,6 +41,30 @@ const PET_SPRITES = Object.freeze({
     frameMs: 190,
     loop: false,
   },
+  nuzzle: {
+    files: [
+      { name: 'nuzzle1@4.png', frames: 4 },
+      { name: 'nuzzle2@4.png', frames: 4 },
+    ],
+    frameMs: 170,
+    loop: false,
+  },
+  knead: {
+    files: [
+      { name: 'knead1@4.png', frames: 4 },
+      { name: 'knead2@4.png', frames: 4 },
+    ],
+    frameMs: 180,
+    loop: false,
+  },
+  stretch: {
+    files: [
+      { name: 'stretch1@4.png', frames: 4 },
+      { name: 'stretch2@4.png', frames: 4 },
+    ],
+    frameMs: 180,
+    loop: false,
+  },
   dragged: {
     files: [{ name: 'dragged@4.png', frames: 4 }],
     frameMs: 160,
@@ -52,6 +76,11 @@ const PET_SPRITES = Object.freeze({
       { name: 'reminder2@4.png', frames: 4 },
     ],
     frameMs: 180,
+    loop: true,
+  },
+  drinkReminder: {
+    files: [{ name: 'drink-reminder@4.png', frames: 4 }],
+    frameMs: 260,
     loop: true,
   },
   sleep: {

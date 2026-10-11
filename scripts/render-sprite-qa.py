@@ -19,8 +19,12 @@ STATES = {
     "headTilt": (("head-tilt@4.png", 4),),
     "pawReach": (("paw-reach@4.png", 4),),
     "roll": (("roll1@4.png", 4), ("roll2@4.png", 4)),
+    "nuzzle": (("nuzzle1@4.png", 4), ("nuzzle2@4.png", 4)),
+    "knead": (("knead1@4.png", 4), ("knead2@4.png", 4)),
+    "stretch": (("stretch1@4.png", 4), ("stretch2@4.png", 4)),
     "dragged": (("dragged@4.png", 4),),
     "reminder": (("reminder@4.png", 4), ("reminder2@4.png", 4)),
+    "drinkReminder": (("drink-reminder@4.png", 4),),
     "sleep": (("sleep@4.png", 4),),
 }
 
@@ -31,8 +35,12 @@ FRAME_MS = {
     "headTilt": 300,
     "pawReach": 250,
     "roll": 190,
+    "nuzzle": 170,
+    "knead": 180,
+    "stretch": 180,
     "dragged": 160,
     "reminder": 180,
+    "drinkReminder": 260,
     "sleep": 350,
 }
 

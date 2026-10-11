@@ -19,7 +19,7 @@
       Promise.resolve(instance.showBubble(canvas)).then((ok) => {
         if (ok === false) return;
         controller.activeReminder = instance;
-        controller.onReminderTriggered();
+        controller.onReminderTriggered(instance.type);
       });
     };
 

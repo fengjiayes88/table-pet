@@ -17,8 +17,12 @@ class PetController {
       HEAD_TILT: 'headTilt',
       PAW_REACH: 'pawReach',
       ROLL: 'roll',
+      NUZZLE: 'nuzzle',
+      KNEAD: 'knead',
+      STRETCH: 'stretch',
       DRAGGED: 'dragged',
       REMINDER: 'reminder',
+      DRINK_REMINDER: 'drinkReminder',
       SLEEP: 'sleep',
     });
 
@@ -59,7 +63,14 @@ class PetController {
     this._ignoringMouse = false;
 
     this.clickActions = [this.STATES.JUMP, this.STATES.HEAD_TILT, this.STATES.PAW_REACH];
+    this.doubleClickActions = [
+      this.STATES.ROLL,
+      this.STATES.NUZZLE,
+      this.STATES.KNEAD,
+      this.STATES.STRETCH,
+    ];
     this.isReminding = false;
+    this.reminderState = this.STATES.REMINDER;
 
     this.animFrameId = null;
     this.loopTimerId = null;
@@ -87,7 +98,10 @@ class PetController {
     this._bindEvents();
     await this.drawer.ready;
     // 提醒可能在应用长时间失焦后触发，提前加载避免首次提醒停在占位帧。
-    await this.drawer.ensureState(this.STATES.REMINDER);
+    await Promise.all([
+      this.drawer.ensureState(this.STATES.REMINDER),
+      this.drawer.ensureState(this.STATES.DRINK_REMINDER),
+    ]);
     await this._refreshWindowMetrics();
 
     this._switchState(this.STATES.IDLE, true);
@@ -324,11 +338,12 @@ class PetController {
 
   _onDoubleClick() {
     this._markUserActivity();
-    if (this.state === this.STATES.REMINDER && this.activeReminder) {
+    if (this.isReminding && this.activeReminder) {
       this.activeReminder.reset(false, true); // 双击是唯一打卡路径
       return;
     }
-    this._switchState(this.STATES.ROLL);
+    const action = this.doubleClickActions[Math.floor(Math.random() * this.doubleClickActions.length)];
+    this._switchState(action);
   }
 
   _startDrag() {
@@ -343,18 +358,22 @@ class PetController {
     this._lastDragScreenX = null;
     this._lastDragScreenY = null;
     await window.electronAPI?.persistWindowPosition?.();
-    this._switchState(this.isReminding ? this.STATES.REMINDER : this.STATES.IDLE, true);
+    this._switchState(this.isReminding ? this.reminderState : this.STATES.IDLE, true);
     this._updatePointerPassthrough();
   }
 
-  onReminderTriggered() {
+  onReminderTriggered(type = 'standup') {
     this.isReminding = true;
-    this._switchState(this.STATES.REMINDER);
+    this.reminderState = type === 'drink'
+      ? this.STATES.DRINK_REMINDER
+      : this.STATES.REMINDER;
+    this._switchState(this.reminderState);
   }
 
   onReminderDismissed() {
     this._markUserActivity();
     this.isReminding = false;
+    this.reminderState = this.STATES.REMINDER;
     this._switchState(this.STATES.IDLE);
   }
 
@@ -565,7 +584,7 @@ class PetController {
       this._scheduleNextFrame(delay);
     } catch (error) {
       console.error('[RENDER] 渲染循环异常', error);
-      this._switchState(this.isReminding ? this.STATES.REMINDER : this.STATES.IDLE, true);
+      this._switchState(this.isReminding ? this.reminderState : this.STATES.IDLE, true);
       this._scheduleNextFrame(100);
     }
   }

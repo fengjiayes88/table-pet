@@ -5,7 +5,7 @@ const manifest = require('../src/renderer/sprite-manifest');
 test('sprite manifest declares every controller state', () => {
   assert.deepEqual(
     Object.keys(manifest).sort(),
-    ['dragged', 'headTilt', 'idle', 'jump', 'pawReach', 'reminder', 'roll', 'sleep', 'walk'],
+    ['dragged', 'drinkReminder', 'headTilt', 'idle', 'jump', 'knead', 'nuzzle', 'pawReach', 'reminder', 'roll', 'sleep', 'stretch', 'walk'],
   );
 });
 
