@@ -12,7 +12,7 @@
     "test": "node --test",
     "smoke": "node scripts/runtime-smoke.js",
     "validate:sprites": "node scripts/validate-sprites.js",
-    "check:syntax": "node --check src/main.js && node --check src/preload.js && node --check src/shared/app-logic.js && node --check src/renderer/sprite-manifest.js && node --check src/renderer/animation-logic.js && node --check src/renderer/pet-drawer.js && node --check src/renderer/pet-controller.js && node --check src/renderer/reminder.js && node --check src/renderer/app.js && node --check src/renderer/settings.js && node --check src/renderer/reminder-bubble.js && node --check scripts/runtime-smoke.js",
+    "check:syntax": "node --check src/main.js && node --check src/preload.js && node --check src/shared/app-logic.js && node --check src/renderer/sprite-manifest.js && node --check src/renderer/animation-logic.js && node --check src/renderer/pet-drawer.js && node --check src/renderer/pet-controller.js && node --check src/renderer/reminder.js && node --check src/renderer/pomodoro.js && node --check src/renderer/app.js && node --check src/renderer/settings.js && node --check src/renderer/reminder-bubble.js && node --check scripts/runtime-smoke.js",
     "check": "npm run check:syntax && npm test && npm run validate:sprites"
   },
   "dependencies": {},

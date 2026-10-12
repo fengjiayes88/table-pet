@@ -36,8 +36,12 @@ SPECS = {
     "headTilt": StateSpec((("head-tilt@4.png", 4),)),
     "pawReach": StateSpec((("paw-reach@4.png", 4),)),
     "roll": StateSpec((("roll1@4.png", 4), ("roll2@4.png", 4))),
+    "nuzzle": StateSpec((("nuzzle1@4.png", 4), ("nuzzle2@4.png", 4))),
+    "knead": StateSpec((("knead1@4.png", 4), ("knead2@4.png", 4))),
+    "stretch": StateSpec((("stretch1@4.png", 4), ("stretch2@4.png", 4))),
     "dragged": StateSpec((("dragged@4.png", 4),), anchor="top"),
     "reminder": StateSpec((("reminder@4.png", 4), ("reminder2@4.png", 4))),
+    "drinkReminder": StateSpec((("drink-reminder@4.png", 4),)),
     "sleep": StateSpec((("sleep@4.png", 4),)),
 }
 

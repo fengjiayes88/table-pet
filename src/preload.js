@@ -25,8 +25,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dismissReminderBubble: (notifyPet = false) =>
     ipcRenderer.invoke('dismiss-reminder-bubble', notifyPet),
 
+  statsEvent: (type) => ipcRenderer.invoke('stats:event', type),
+  statsQuery: () => ipcRenderer.invoke('stats:query'),
+
   onSettingsChanged: (callback) => subscribe('settings-changed', callback),
   onWindowSizeChanged: (callback) => subscribe('window-size', callback),
   onReminderMessage: (callback) => subscribe('reminder-message', callback),
   onReminderDismissed: (callback) => subscribe('reminder-dismissed', callback),
+  onStatsUpdated: (callback) => subscribe('stats-updated', callback),
 });

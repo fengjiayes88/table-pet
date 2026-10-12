@@ -2,18 +2,32 @@
  * 休息提醒倒计时。气泡由主进程创建独立透明窗口，避免被宠物窗口裁切。
  */
 class Reminder {
-  constructor() {
+  constructor({
+    // type 的唯一消费方是 statsEvent，必须与 STAT_TYPES 一致（规格 3.3 事件名 standup）
+    type = 'standup',
+    message = '该休息啦～双击我解除提醒吧！',
+    setIntervalFn = setInterval.bind(globalThis),
+    clearIntervalFn = clearInterval.bind(globalThis),
+    nowFn = Date.now,
+  } = {}) {
+    this.type = type;
+    this.message = message;
+    this.setIntervalFn = setIntervalFn;
+    this.clearIntervalFn = clearIntervalFn;
+    this.nowFn = nowFn;
     this.intervalMinutes = 45;
     this.enabled = true;
     this.timerId = null;
-    this.startTime = Date.now();
+    this.startTime = nowFn();
     this.onTrigger = null;
     this.onTick = null;
     this.onDismiss = null;
     this.bubbleVisible = false;
   }
 
-  configure({ enabled, intervalMinutes }) {
+  configure({ enabled, intervalMinutes, message }) {
+    const prevEnabled = this.enabled;
+    const prevInterval = this.intervalMinutes;
     if (enabled !== undefined) this.enabled = !!enabled;
     if (intervalMinutes !== undefined) {
       const parsed = Number(intervalMinutes);
@@ -21,16 +35,21 @@ class Reminder {
         ? Math.min(999, Math.max(1, parsed))
         : 45;
     }
-    this.enabled ? this.start(true) : this.stop();
+    if (message !== undefined) this.message = String(message);
+    // 仅在开关/间隔实际变化、或应运行而未运行时重启，避免无关设置保存重置倒计时
+    const timingChanged = this.enabled !== prevEnabled || this.intervalMinutes !== prevInterval;
+    if (timingChanged || (this.enabled && !this.timerId)) {
+      this.enabled ? this.start(true) : this.stop();
+    }
   }
 
   start(resetTimer = true) {
     this.stop();
     if (!this.enabled) return;
-    if (resetTimer) this.startTime = Date.now();
+    if (resetTimer) this.startTime = this.nowFn();
 
-    this.timerId = setInterval(() => {
-      const elapsedMs = Date.now() - this.startTime;
+    this.timerId = this.setIntervalFn(() => {
+      const elapsedMs = this.nowFn() - this.startTime;
       const totalMs = this.intervalMinutes * 60 * 1000;
       const remaining = totalMs - elapsedMs;
       this.onTick?.({
@@ -45,14 +64,14 @@ class Reminder {
 
   stop() {
     if (!this.timerId) return;
-    clearInterval(this.timerId);
+    this.clearIntervalFn(this.timerId);
     this.timerId = null;
   }
 
-  reset(fromBubbleWindow = false) {
-    this.startTime = Date.now();
+  reset(fromBubbleWindow = false, checkIn = false) {
+    this.startTime = this.nowFn();
     this.dismissBubble(!fromBubbleWindow);
-    this.onDismiss?.();
+    this.onDismiss?.(checkIn);
   }
 
   triggerReminder() {
@@ -60,10 +79,21 @@ class Reminder {
     this.onTrigger?.();
   }
 
-  showBubble(_canvasElement, message = '该休息啦～双击我解除提醒吧！') {
+  showBubble(_canvasElement, message = this.message) {
     if (this.bubbleVisible) return;
-    this.bubbleVisible = true;
-    window.electronAPI?.showReminderBubble?.(message);
+    const shown = window.electronAPI?.showReminderBubble?.(message);
+    // invoke 返回 Promise，测试替身同步返回布尔，两种来源统一处理
+    const onShown = (ok) => {
+      if (ok === false) {
+        // 气泡被占用：跳过本轮并重启自己的计时，不排队连弹
+        this.start(true);
+      } else {
+        this.bubbleVisible = true;
+      }
+    };
+    if (shown && typeof shown.then === 'function') shown.then(onShown);
+    else onShown(shown);
+    return shown;
   }
 
   dismissBubble(notifyWindow = true) {

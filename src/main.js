@@ -16,12 +16,30 @@ const {
   finiteNumber,
   normalizeSettings,
   clampToWorkArea,
+  STAT_TYPES,
+  recordStat,
+  getDailyStats,
 } = require('./shared/app-logic');
+
+// 单实例锁：旧实例与新实例共存会互相覆盖 settings.json（旧主进程不认新字段），后来者直接退出并唤起已有实例
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.isVisible() ? mainWindow.focus() : mainWindow.showInactive();
+    }
+  });
+}
 
 const IS_SMOKE_TEST = process.env.QIXI_SMOKE_TEST === '1';
 const SETTINGS_PATH = IS_SMOKE_TEST
   ? path.join(app.getPath('temp'), `qixi-pet-smoke-${process.pid}.json`)
   : path.join(app.getPath('userData'), 'settings.json');
+const STATS_PATH = IS_SMOKE_TEST
+  ? path.join(app.getPath('temp'), `qixi-pet-smoke-stats-${process.pid}.json`)
+  : path.join(app.getPath('userData'), 'stats.json');
 const APP_ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.ico');
 const PET_BASE_SIZE = 180;
 
@@ -62,6 +80,43 @@ function scheduleSettingsSave(delay = 300) {
   saveTimer = setTimeout(saveSettingsNow, delay);
 }
 
+function loadStats() {
+  try {
+    if (fs.existsSync(STATS_PATH)) {
+      return JSON.parse(fs.readFileSync(STATS_PATH, 'utf8'));
+    }
+  } catch (error) {
+    console.error('[STATS] 统计数据损坏，已重置', error);
+  }
+  return {};
+}
+
+function saveStats(stats) {
+  try {
+    fs.mkdirSync(path.dirname(STATS_PATH), { recursive: true });
+    fs.writeFileSync(STATS_PATH, JSON.stringify(stats, null, 2), 'utf8');
+  } catch (error) {
+    console.error('[STATS] 保存失败', error);
+  }
+}
+
+function getTodayStats() {
+  return getDailyStats(loadStats(), new Date());
+}
+
+function handleStatsEvent(type) {
+  if (!STAT_TYPES.includes(type)) {
+    console.warn(`[STATS] 忽略非法统计事件类型: ${type}`);
+    return getTodayStats();
+  }
+  const next = recordStat(loadStats(), type, new Date());
+  saveStats(next);
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('stats-updated');
+  }
+  return getDailyStats(next, new Date());
+}
+
 function applyAutoLaunch(openAtLogin) {
   if (!app.isPackaged) {
     app.setLoginItemSettings({
@@ -77,6 +132,7 @@ function applyAutoLaunch(openAtLogin) {
 let mainWindow = null;
 let settingsWindow = null;
 let reminderWindow = null;
+let bubbleIsPureDisplay = false; // 托盘统计等纯展示气泡：关闭不广播 reminder-dismissed
 let tray = null;
 let isQuitting = false;
 
@@ -138,6 +194,18 @@ function updateReminderBubblePosition() {
   if (y < workArea.y) y = petBounds.y + petBounds.height + 8;
   y = clamp(y, workArea.y, workArea.y + workArea.height - bubbleBounds.height);
   reminderWindow.setPosition(Math.round(x), Math.round(y), false);
+}
+
+// 显示器热切换（拔插/改分辨率/任务栏变化）：把宠物与气泡即时收回有效工作区
+function handleDisplayChange() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const size = petSize();
+  const bounds = mainWindow.getBounds();
+  const position = clampPosition(bounds.x, bounds.y, size, size);
+  if (position.x !== bounds.x || position.y !== bounds.y) {
+    mainWindow.setBounds({ x: position.x, y: position.y, width: size, height: size });
+  }
+  updateReminderBubblePosition();
 }
 
 function createWindow() {
@@ -241,6 +309,7 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     { label: '设置', click: createSettingsWindow },
+    { label: '今日统计', click: showTodayStatsBubble },
     { type: 'separator' },
     {
       label: '开机自启',
@@ -349,9 +418,20 @@ function showReminderBubble(message) {
 function dismissReminderBubble(notifyPet = true) {
   if (reminderWindow && !reminderWindow.isDestroyed()) reminderWindow.close();
   reminderWindow = null;
-  if (notifyPet && mainWindow && !mainWindow.isDestroyed()) {
+  // 纯展示气泡（托盘统计）关闭不广播，避免误触发打卡
+  const notify = notifyPet && !bubbleIsPureDisplay;
+  bubbleIsPureDisplay = false;
+  if (notify && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('reminder-dismissed');
   }
+}
+
+function showTodayStatsBubble() {
+  const s = getTodayStats();
+  showReminderBubble(
+    `今日健康报告：起身 ${s.standup} 次 · 番茄 ${s.pomodoro} 个 · 喝水 ${s.drink} 次`
+  );
+  bubbleIsPureDisplay = true;
 }
 
 function isPetSender(event) {
@@ -443,6 +523,9 @@ ipcMain.on('open-settings-window', (event) => {
 
 ipcMain.handle('show-reminder-bubble', (event, message) => {
   if (!isPetSender(event)) return false;
+  // 气泡互斥：窗口存活即被占用（含创建中），后来者拒绝并自行重启计时
+  if (reminderWindow && !reminderWindow.isDestroyed()) return false;
+  bubbleIsPureDisplay = false; // 宠物提醒接管气泡，恢复关闭广播
   showReminderBubble(typeof message === 'string' ? message.slice(0, 120) : '该休息啦～');
   return true;
 });
@@ -462,9 +545,25 @@ ipcMain.on('quit-app', (event) => {
   app.quit();
 });
 
-app.whenReady().then(() => {
+ipcMain.handle('stats:event', (event, type) => {
+  if (!isPetSender(event) && !isSettingsSender(event)) return getTodayStats();
+  return handleStatsEvent(type);
+});
+
+ipcMain.handle('stats:query', (event) => {
+  if (!isPetSender(event) && !isSettingsSender(event)) {
+    return { standup: 0, pomodoro: 0, drink: 0 };
+  }
+  return getTodayStats();
+});
+
+if (gotSingleInstanceLock) app.whenReady().then(() => {
   if (!IS_SMOKE_TEST) applyAutoLaunch(settings.autoLaunch);
   createWindow();
+  // 多显示器适配：显示器热插拔/位移/分辨率变化时即时纠正宠物与气泡位置
+  screen.on('display-removed', handleDisplayChange);
+  screen.on('display-moved', handleDisplayChange);
+  screen.on('display-metrics-changed', handleDisplayChange);
   if (!IS_SMOKE_TEST) createTray();
   if (!IS_SMOKE_TEST) {
     const shortcutRegistered = globalShortcut.register(

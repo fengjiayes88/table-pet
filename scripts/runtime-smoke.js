@@ -137,7 +137,7 @@ async function main() {
     );
     assert.equal(petState.fatal, false);
     assert.equal(petState.backingWidth, Math.round(petState.cssWidth * petState.dpr));
-    assert.deepEqual(petState.loadedStates, ['idle']);
+    assert.deepEqual(petState.loadedStates, ['idle', 'reminder', 'drinkReminder']);
 
     const idleDrawsPerSecond = await evaluate(petTarget, `(async () => {
       const drawer = window.__qixiSmoke.drawer;
@@ -171,16 +171,16 @@ async function main() {
     const lazyLoadedStates = await waitFor(
       'an interaction sprite to load lazily',
       () => evaluate(petTarget, 'window.__qixiSmoke.drawer.getLoadedStates()'),
-      (states) => states.length === 2,
+      (states) => states.some((state) => ['jump', 'headTilt', 'pawReach'].includes(state)),
     );
     assert.ok(lazyLoadedStates.some((state) => ['jump', 'headTilt', 'pawReach'].includes(state)));
 
-    const redesignedActions = await evaluate(petTarget, `(async () => {
+    const spriteActions = await evaluate(petTarget, `(async () => {
       const canvas = document.getElementById('pet-canvas');
       const ctx = canvas.getContext('2d');
       const drawer = window.__qixiSmoke.drawer;
       const results = {};
-      for (const state of ['walk', 'roll']) {
+      for (const state of ['walk', 'roll', 'nuzzle', 'knead', 'stretch', 'drinkReminder']) {
         const loaded = await drawer.ensureState(state);
         const info = drawer.getAnimationInfo(state);
         let visibleFrames = 0;
@@ -197,8 +197,12 @@ async function main() {
       }
       return results;
     })()`);
-    assert.deepEqual(redesignedActions.walk, { loaded: true, totalFrames: 8, visibleFrames: 8 });
-    assert.deepEqual(redesignedActions.roll, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+    assert.deepEqual(spriteActions.walk, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+    assert.deepEqual(spriteActions.roll, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+    assert.deepEqual(spriteActions.nuzzle, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+    assert.deepEqual(spriteActions.knead, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+    assert.deepEqual(spriteActions.stretch, { loaded: true, totalFrames: 8, visibleFrames: 8 });
+    assert.deepEqual(spriteActions.drinkReminder, { loaded: true, totalFrames: 4, visibleFrames: 4 });
 
     await evaluate(petTarget, `(() => {
       const controller = window.__qixiSmoke.controller;
@@ -317,7 +321,7 @@ async function main() {
     report = {
       ok: true,
       pet: { ...petState, idleDrawsPerSecond, lazyLoadedStates },
-      redesignedActions,
+      spriteActions,
       scheduledEvents,
       settings: settingsState,
       settingsPreviewPath,

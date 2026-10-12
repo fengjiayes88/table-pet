@@ -390,6 +390,12 @@ input[type="range"]:focus-visible,
   font-size: 9px;
 }
 
+#today-stats {
+  color: var(--ink-soft);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 .footer {
   display: flex;
   align-items: center;

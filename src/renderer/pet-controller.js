@@ -8,6 +8,7 @@ class PetController {
     this.ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: true });
     this.drawer = petDrawer;
     this.reminder = reminder;
+    this.activeReminder = null; // 当前持有气泡的提醒实例（app.js 维护），决定打卡归属
 
     this.STATES = Object.freeze({
       IDLE: 'idle',
@@ -16,8 +17,12 @@ class PetController {
       HEAD_TILT: 'headTilt',
       PAW_REACH: 'pawReach',
       ROLL: 'roll',
+      NUZZLE: 'nuzzle',
+      KNEAD: 'knead',
+      STRETCH: 'stretch',
       DRAGGED: 'dragged',
       REMINDER: 'reminder',
+      DRINK_REMINDER: 'drinkReminder',
       SLEEP: 'sleep',
     });
 
@@ -58,7 +63,14 @@ class PetController {
     this._ignoringMouse = false;
 
     this.clickActions = [this.STATES.JUMP, this.STATES.HEAD_TILT, this.STATES.PAW_REACH];
+    this.doubleClickActions = [
+      this.STATES.ROLL,
+      this.STATES.NUZZLE,
+      this.STATES.KNEAD,
+      this.STATES.STRETCH,
+    ];
     this.isReminding = false;
+    this.reminderState = this.STATES.REMINDER;
 
     this.animFrameId = null;
     this.loopTimerId = null;
@@ -81,13 +93,15 @@ class PetController {
       enabled: this.settings.reminderEnabled,
       intervalMinutes: this.settings.reminderInterval,
     });
-    this.reminder.onTrigger = () => this._onReminderTrigger();
 
     this._resizeCanvas();
     this._bindEvents();
     await this.drawer.ready;
     // 提醒可能在应用长时间失焦后触发，提前加载避免首次提醒停在占位帧。
-    await this.drawer.ensureState(this.STATES.REMINDER);
+    await Promise.all([
+      this.drawer.ensureState(this.STATES.REMINDER),
+      this.drawer.ensureState(this.STATES.DRINK_REMINDER),
+    ]);
     await this._refreshWindowMetrics();
 
     this._switchState(this.STATES.IDLE, true);
@@ -106,7 +120,9 @@ class PetController {
             enabled: nextSettings.reminderEnabled,
             intervalMinutes: nextSettings.reminderInterval,
           });
-          if (!nextSettings.reminderEnabled && this.isReminding) this.reminder.reset();
+          if (!nextSettings.reminderEnabled && this.activeReminder === this.reminder) {
+            this.activeReminder.reset();
+          }
         }
 
         this.drawer.scale = nextSettings.size;
@@ -119,7 +135,10 @@ class PetController {
       });
 
       window.electronAPI.onReminderDismissed(() => {
-        if (this.isReminding) this.reminder.reset(true);
+        if (!this.isReminding) return;
+        // 气泡关闭按钮等非双击解除：交还活跃实例；番茄钟/托盘气泡无实例，仅收尾状态
+        if (this.activeReminder) this.activeReminder.reset(true);
+        else this.onReminderDismissed();
       });
     }
   }
@@ -319,11 +338,12 @@ class PetController {
 
   _onDoubleClick() {
     this._markUserActivity();
-    if (this.state === this.STATES.REMINDER) {
-      this.reminder.reset();
+    if (this.isReminding && this.activeReminder) {
+      this.activeReminder.reset(false, true); // 双击是唯一打卡路径
       return;
     }
-    this._switchState(this.STATES.ROLL);
+    const action = this.doubleClickActions[Math.floor(Math.random() * this.doubleClickActions.length)];
+    this._switchState(action);
   }
 
   _startDrag() {
@@ -338,22 +358,23 @@ class PetController {
     this._lastDragScreenX = null;
     this._lastDragScreenY = null;
     await window.electronAPI?.persistWindowPosition?.();
-    this._switchState(this.isReminding ? this.STATES.REMINDER : this.STATES.IDLE, true);
+    this._switchState(this.isReminding ? this.reminderState : this.STATES.IDLE, true);
     this._updatePointerPassthrough();
   }
 
-  _onReminderTrigger() {
-    if (this.isReminding) return;
+  onReminderTriggered(type = 'standup') {
     this.isReminding = true;
-    this._switchState(this.STATES.REMINDER);
-    this.reminder.showBubble(this.canvas);
+    this.reminderState = type === 'drink'
+      ? this.STATES.DRINK_REMINDER
+      : this.STATES.REMINDER;
+    this._switchState(this.reminderState);
   }
 
   onReminderDismissed() {
     this._markUserActivity();
     this.isReminding = false;
+    this.reminderState = this.STATES.REMINDER;
     this._switchState(this.STATES.IDLE);
-    this.reminder.start(true);
   }
 
   _switchState(newState, force = false) {
@@ -563,7 +584,7 @@ class PetController {
       this._scheduleNextFrame(delay);
     } catch (error) {
       console.error('[RENDER] 渲染循环异常', error);
-      this._switchState(this.isReminding ? this.STATES.REMINDER : this.STATES.IDLE, true);
+      this._switchState(this.isReminding ? this.reminderState : this.STATES.IDLE, true);
       this._scheduleNextFrame(100);
     }
   }

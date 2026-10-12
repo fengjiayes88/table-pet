@@ -9,6 +9,15 @@
   const reminderIntervalElement = get('reminder-interval');
   const intervalGroup = get('interval-group');
   const autoLaunchElement = get('autolaunch');
+  const pomodoroEnabledElement = get('pomodoro-enabled');
+  const pomodoroWorkElement = get('pomodoro-work');
+  const pomodoroBreakElement = get('pomodoro-break');
+  const pomodoroWorkGroup = get('pomodoro-work-group');
+  const pomodoroBreakGroup = get('pomodoro-break-group');
+  const drinkEnabledElement = get('drink-enabled');
+  const drinkIntervalElement = get('drink-interval');
+  const drinkIntervalGroup = get('drink-interval-group');
+  const todayStats = get('today-stats');
   const saveStatus = get('save-status');
   const saveStatusText = get('save-status-text');
   let statusTimer = null;
@@ -27,6 +36,11 @@
     reminderIntervalElement.disabled = !enabled;
   }
 
+  function updateNumberGroup(group, input, enabled) {
+    group.classList.toggle('is-disabled', !enabled);
+    input.disabled = !enabled;
+  }
+
   try {
     const settings = await window.electronAPI.getSettings();
     sizeElement.value = settings.size;
@@ -37,7 +51,15 @@
     reminderEnabledElement.checked = settings.reminderEnabled;
     reminderIntervalElement.value = settings.reminderInterval;
     autoLaunchElement.checked = settings.autoLaunch;
+    pomodoroEnabledElement.checked = settings.pomodoroEnabled;
+    pomodoroWorkElement.value = settings.pomodoroWork;
+    pomodoroBreakElement.value = settings.pomodoroBreak;
+    drinkEnabledElement.checked = settings.drinkReminderEnabled;
+    drinkIntervalElement.value = settings.drinkReminderInterval;
     updateReminderControls(settings.reminderEnabled);
+    updateNumberGroup(pomodoroWorkGroup, pomodoroWorkElement, settings.pomodoroEnabled);
+    updateNumberGroup(pomodoroBreakGroup, pomodoroBreakElement, settings.pomodoroEnabled);
+    updateNumberGroup(drinkIntervalGroup, drinkIntervalElement, settings.drinkReminderEnabled);
   } catch (error) {
     console.error('[SETTINGS] 加载失败', error);
     setSaveStatus('error', '设置加载失败');
@@ -52,6 +74,15 @@
       console.error('[SETTINGS] 保存失败', error);
       setSaveStatus('error', '保存失败，请重试');
     }
+  }
+
+  function bindNumberInput(element, key, fallback, min, max) {
+    element.addEventListener('change', () => {
+      const parsed = Number.parseInt(element.value, 10);
+      const value = Math.min(max, Math.max(min, Number.isFinite(parsed) ? parsed : fallback));
+      element.value = value;
+      apply(key, value);
+    });
   }
 
   sizeElement.addEventListener('input', () => {
@@ -72,12 +103,37 @@
     apply('reminderEnabled', reminderEnabledElement.checked);
   });
 
-  reminderIntervalElement.addEventListener('change', () => {
-    const parsed = Number.parseInt(reminderIntervalElement.value, 10);
-    const value = Math.min(999, Math.max(1, Number.isFinite(parsed) ? parsed : 45));
-    reminderIntervalElement.value = value;
-    apply('reminderInterval', value);
+  bindNumberInput(reminderIntervalElement, 'reminderInterval', 45, 1, 999);
+
+  bindNumberInput(pomodoroWorkElement, 'pomodoroWork', 25, 5, 120);
+  bindNumberInput(pomodoroBreakElement, 'pomodoroBreak', 5, 1, 60);
+  bindNumberInput(drinkIntervalElement, 'drinkReminderInterval', 60, 5, 999);
+
+  pomodoroEnabledElement.addEventListener('change', () => {
+    updateNumberGroup(pomodoroWorkGroup, pomodoroWorkElement, pomodoroEnabledElement.checked);
+    updateNumberGroup(pomodoroBreakGroup, pomodoroBreakElement, pomodoroEnabledElement.checked);
+    apply('pomodoroEnabled', pomodoroEnabledElement.checked);
   });
+
+  drinkEnabledElement.addEventListener('change', () => {
+    updateNumberGroup(drinkIntervalGroup, drinkIntervalElement, drinkEnabledElement.checked);
+    apply('drinkReminderEnabled', drinkEnabledElement.checked);
+  });
+
+  function renderTodayStats(stats) {
+    todayStats.textContent =
+      `起身 ${stats.standup} 次 · 番茄 ${stats.pomodoro} 个 · 喝水 ${stats.drink} 次`;
+  }
+
+  async function refreshTodayStats() {
+    try {
+      renderTodayStats(await window.electronAPI.statsQuery());
+    } catch (error) {
+      console.error('[STATS] 读取失败', error);
+    }
+  }
+  refreshTodayStats();
+  window.electronAPI.onStatsUpdated(refreshTodayStats);
 
   autoLaunchElement.addEventListener('change', () =>
     apply('autoLaunch', autoLaunchElement.checked));

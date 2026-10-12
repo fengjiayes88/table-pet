@@ -89,8 +89,31 @@
 
           <div class="setting-row compact-row">
             <div class="setting-copy">
+              <label for="autolaunch">开机自启</label>
+              <p>登录系统后自动唤醒七七</p>
+            </div>
+            <label class="switch" aria-label="开机自启">
+              <input type="checkbox" id="autolaunch" checked>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="health-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">HEALTH</p>
+            <h2 id="health-title">健康</h2>
+          </div>
+          <span class="section-icon warm" aria-hidden="true">♥</span>
+        </div>
+
+        <div class="panel behavior-panel">
+          <div class="setting-row compact-row">
+            <div class="setting-copy">
               <label for="reminder-enabled">休息提醒</label>
-              <p>工作一段时间后提醒你活动一下</p>
+              <p>久坐提醒：工作一段时间后提醒你起身活动</p>
             </div>
             <label class="switch" aria-label="休息提醒">
               <input type="checkbox" id="reminder-enabled" checked>
@@ -110,13 +133,57 @@
 
           <div class="setting-row compact-row">
             <div class="setting-copy">
-              <label for="autolaunch">开机自启</label>
-              <p>登录系统后自动唤醒七七</p>
+              <label for="pomodoro-enabled">番茄钟模式</label>
+              <p>工作与休息交替计时，开启期间暂停久坐提醒</p>
             </div>
-            <label class="switch" aria-label="开机自启">
-              <input type="checkbox" id="autolaunch" checked>
+            <label class="switch" aria-label="番茄钟模式">
+              <input type="checkbox" id="pomodoro-enabled">
               <span class="switch-track"><span class="switch-thumb"></span></span>
             </label>
+          </div>
+
+          <div class="sub-setting" id="pomodoro-work-group">
+            <label for="pomodoro-work">工作时长</label>
+            <div class="number-control">
+              <input type="number" id="pomodoro-work" min="5" max="120" step="1" value="25">
+              <span>分钟</span>
+            </div>
+          </div>
+
+          <div class="sub-setting" id="pomodoro-break-group">
+            <label for="pomodoro-break">休息时长</label>
+            <div class="number-control">
+              <input type="number" id="pomodoro-break" min="1" max="60" step="1" value="5">
+              <span>分钟</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row compact-row">
+            <div class="setting-copy">
+              <label for="drink-enabled">喝水提醒</label>
+              <p>定时提醒你补充水分</p>
+            </div>
+            <label class="switch" aria-label="喝水提醒">
+              <input type="checkbox" id="drink-enabled">
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+
+          <div class="sub-setting" id="drink-interval-group">
+            <label for="drink-interval">喝水间隔</label>
+            <div class="number-control">
+              <input type="number" id="drink-interval" min="5" max="999" step="1" value="60">
+              <span>分钟</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="sub-setting" id="today-stats-group">
+            <label>今日统计</label>
+            <div id="today-stats">起身 0 次 · 番茄 0 个 · 喝水 0 次</div>
           </div>
         </div>
       </section>

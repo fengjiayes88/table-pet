@@ -15,7 +15,12 @@ function makeStateController(drawer) {
     IDLE: 'idle',
     WALK: 'walk',
     JUMP: 'jump',
+    ROLL: 'roll',
+    NUZZLE: 'nuzzle',
+    KNEAD: 'knead',
+    STRETCH: 'stretch',
     REMINDER: 'reminder',
+    DRINK_REMINDER: 'drinkReminder',
     SLEEP: 'sleep',
   });
   controller.state = 'idle';
@@ -26,6 +31,9 @@ function makeStateController(drawer) {
   controller._lastRenderedState = null;
   controller._lastRenderedFrame = -1;
   controller._needsRender = false;
+  controller.isReminding = false;
+  controller.reminderState = 'reminder';
+  controller.doubleClickActions = ['roll', 'nuzzle', 'knead', 'stretch'];
   controller._randomWalkDelay = () => 10000;
   controller._randomJumpDelay = () => 20000;
   return controller;
@@ -101,6 +109,7 @@ test('ending a drag resumes an active reminder animation', async () => {
   });
   controller.isDragging = true;
   controller.isReminding = true;
+  controller.reminderState = 'drinkReminder';
   controller._lastDragScreenX = 1;
   controller._lastDragScreenY = 1;
   controller._switchState = (state, force) => states.push([state, force]);
@@ -108,7 +117,54 @@ test('ending a drag resumes an active reminder animation', async () => {
 
   await controller._endDrag();
 
-  assert.deepEqual(states, [['reminder', true]]);
+  assert.deepEqual(states, [['drinkReminder', true]]);
   assert.equal(controller.isDragging, false);
   delete global.window;
+});
+
+test('drink reminders select the dedicated sprite state', () => {
+  global.window = { AnimationLogic };
+  const states = [];
+  const controller = makeStateController({});
+  controller._switchState = (state) => states.push(state);
+
+  controller.onReminderTriggered('drink');
+
+  assert.equal(controller.isReminding, true);
+  assert.equal(controller.reminderState, 'drinkReminder');
+  assert.deepEqual(states, ['drinkReminder']);
+  delete global.window;
+});
+
+test('double-clicking the drink animation checks in the active reminder', () => {
+  const checkIns = [];
+  const controller = makeStateController({});
+  controller.state = 'drinkReminder';
+  controller.isReminding = true;
+  controller.activeReminder = {
+    reset: (...args) => checkIns.push(args),
+  };
+  controller._markUserActivity = () => {};
+  controller._switchState = () => assert.fail('check-in should not start a pet action');
+
+  controller._onDoubleClick();
+
+  assert.deepEqual(checkIns, [[false, true]]);
+});
+
+test('double-clicking outside a reminder chooses from the four affection actions', () => {
+  const states = [];
+  const controller = makeStateController({});
+  controller._markUserActivity = () => {};
+  controller._switchState = (state) => states.push(state);
+  const originalRandom = Math.random;
+  Math.random = () => 0.62;
+  try {
+    controller._onDoubleClick();
+  } finally {
+    Math.random = originalRandom;
+  }
+
+  assert.deepEqual(controller.doubleClickActions, ['roll', 'nuzzle', 'knead', 'stretch']);
+  assert.deepEqual(states, ['knead']);
 });

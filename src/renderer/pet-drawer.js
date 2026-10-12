@@ -156,8 +156,12 @@ class PetDrawer {
       case 'headTilt': this._drawHeadTilt(ctx, cx, cy, progress); break;
       case 'pawReach': this._drawPawReach(ctx, cx, cy, progress); break;
       case 'roll':     this._drawRoll(ctx, cx, cy, progress); break;
+      case 'nuzzle':   this._drawIdle(ctx, cx, cy, progress); break;
+      case 'knead':    this._drawIdle(ctx, cx, cy, progress); break;
+      case 'stretch':  this._drawIdle(ctx, cx, cy, progress); break;
       case 'dragged':  this._drawDragged(ctx, cx, cy, progress); break;
       case 'reminder': this._drawReminder(ctx, cx, cy, progress); break;
+      case 'drinkReminder': this._drawReminder(ctx, cx, cy, progress); break;
       case 'sleep':    this._drawSleep(ctx, cx, cy, progress); break;
       default:         this._drawIdle(ctx, cx, cy, progress);
     }
